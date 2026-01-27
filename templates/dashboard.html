@@ -355,7 +355,7 @@
         .col-dept { width: 120px; }
         /* .col-payment { width: 200px; } Removed */
         .col-orig-no { width: 150px; }
-        /* .col-orig-name { width: 200px; } Removed */
+        .col-orig-name { width: 200px; }
         .col-remarks { width: 180px; }
         .col-actions { width: 140px; text-align: center; position: sticky; right: 0; background: white; box-shadow: -2px 0 5px rgba(0,0,0,0.05); z-index: 20; }
         th.col-actions { background: #F8FAFC; }
@@ -449,7 +449,7 @@
             <h1>合同管理系统</h1>
         </div>
         <div class="user-profile">
-            <span class="user-name">管理员 (Admin)</span>
+            <span class="user-name">{{ session.get('realname', '管理员') }} ({{ session.get('user', 'Admin') }})</span>
             <a href="/logout" class="logout-btn">退出登录</a>
         </div>
     </header>
@@ -692,19 +692,20 @@
                         <thead>
                             <tr>
                                 <th class="col-no">编号</th>
-                                <th class="col-name">名称</th>
+                                <th class="col-name">合同名称</th>
                                 <th class="col-project">项目号</th>
-                                <th class="col-type">类型</th>
-                                <th class="col-platform">平台</th>
-                                <th class="col-amount">金额</th>
-                                <th class="col-date">日期</th>
-                                <th class="col-company">单位</th>
+                                <th class="col-type">合同类型</th>
+                                <th class="col-platform">所属平台</th>
+                                <th class="col-amount">金额 (元)</th>
+                                <th class="col-date">签订日期</th>
+                                <th class="col-company">单位名称</th>
                                 <th class="col-manager">企业负责人</th>
-                                <th class="col-phone">电话</th>
+                                <th class="col-phone">联系电话</th>
                                 <th class="col-exec">执行合伙人</th>
                                 <th class="col-filler">填表人</th>
-                                <th class="col-dept">部门</th>
-                                <th class="col-orig-no">原合同号</th>
+                                <th class="col-dept">所属部门</th>
+                                <th class="col-orig-no">原合同编号</th>
+                                <th class="col-orig-name">原合同名称</th>
                                 <th class="col-remarks">备注</th>
                                 <th class="col-actions">操作</th>
                             </tr>
@@ -772,10 +773,11 @@
                     <td style="font-family: monospace; font-weight: 600; text-align: right;">${amount}</td>
                     <td>${contract.sign_date || '-'}</td>
                     <td>${contract.company_name}</td>
+                    <td>${contract.corporate_principal}</td>
                     <td>${contract.contact_phone}</td>
-                    <td>${contract.manager}</td>
+                    <td>${contract.executive_partner || '-'}</td>
+                    <td>${contract.filler || '-'}</td>
                     <td>${contract.department}</td>
-                    <td>${contract.payment_terms || '-'}</td>
                     <td>${contract.original_contract_no || '-'}</td>
                     <td>${contract.original_contract_name || '-'}</td>
                     <td>${contract.remarks || '-'}</td>
@@ -860,7 +862,9 @@
                 document.getElementById('signDate').value = contract.sign_date || '';
                 document.getElementById('companyName').value = contract.company_name;
                 document.getElementById('contactPhone').value = contract.contact_phone;
-                document.getElementById('manager').value = contract.manager;
+                document.getElementById('corporatePrincipal').value = contract.corporate_principal;
+                document.getElementById('executivePartner').value = contract.executive_partner || '';
+                document.getElementById('filler').value = contract.filler || '';
                 document.getElementById('department').value = contract.department;
                 document.getElementById('paymentTerms').value = contract.payment_terms || '';
                 document.getElementById('originalContractNo').value = contract.original_contract_no || '';

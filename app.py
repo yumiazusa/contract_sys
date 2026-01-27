@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for, session
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
+from werkzeug.security import generate_password_hash, check_password_hash
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill
 from io import BytesIO
@@ -19,6 +20,15 @@ db = SQLAlchemy(app)
 
 
 # 数据库模型
+class User(db.Model):
+    __tablename__ = 'users'
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    password = db.Column(db.String(255), nullable=False)
+    realname = db.Column(db.String(100))
+    department = db.Column(db.String(50))
+    created_date = db.Column(db.DateTime, default=datetime.now)
+
 class Contract(db.Model):
     __tablename__ = 'contracts'
 
@@ -70,17 +80,51 @@ def index():
     return render_template('login.html')
 
 
-# 登录验证(简单示例,实际应使用数据库验证)
+# 登录验证
 @app.route('/login', methods=['POST'])
 def login():
     username = request.form.get('username')
     password = request.form.get('password')
 
-    # 简单验证示例,实际应查询数据库
-    if username and password:
-        session['user'] = username
+    user = User.query.filter_by(username=username).first()
+    
+    # 验证逻辑：
+    # 1. 如果数据库中存在该用户
+    # 2. 检查密码是否匹配（支持明文比对或 Hash 比对，优先 Hash）
+    # 3. 如果是 admin/admin123，且数据库中没有该用户，我们稍后通过 init_admin 确保其存在
+    
+    is_valid = False
+    if user:
+        if check_password_hash(user.password, password):
+            is_valid = True
+        elif user.password == password: # 兼容明文存储的情况
+            is_valid = True
+            
+    if is_valid:
+        session['user'] = user.username
+        session['realname'] = user.realname
         return redirect(url_for('dashboard'))
-    return redirect(url_for('index'))
+        
+    return render_template('login.html', error='用户名或密码错误')
+
+
+# 初始化数据库和管理员账号
+def init_admin():
+    with app.app_context():
+        admin = User.query.filter_by(username='admin').first()
+        if not admin:
+            admin = User(
+                username='admin',
+                password=generate_password_hash('admin123'),
+                realname='系统管理员',
+                department='管理部'
+            )
+            db.session.add(admin)
+            db.session.commit()
+            print("Default admin user created.")
+
+# 在应用启动时尝试初始化管理员
+# init_admin()
 
 
 # 退出登录
