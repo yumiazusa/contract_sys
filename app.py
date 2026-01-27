@@ -32,7 +32,7 @@ class Contract(db.Model):
     sign_date = db.Column(db.Date)
     company_name = db.Column(db.String(200), nullable=False)
     contact_phone = db.Column(db.String(50), nullable=False)
-    manager = db.Column(db.String(100), nullable=False)
+    corporate_principal = db.Column(db.String(100), nullable=False)
     department = db.Column(db.String(50), nullable=False)
     payment_terms = db.Column(db.Text)
     original_contract_no = db.Column(db.String(50))
@@ -40,6 +40,8 @@ class Contract(db.Model):
     remarks = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.now)
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+    executive_partner = db.Column(db.String(255))
+    filler = db.Column(db.String(255))
 
 
 # 生成合同编号
@@ -111,13 +113,15 @@ def get_contracts():
         'sign_date': c.sign_date.strftime('%Y-%m-%d') if c.sign_date else '',
         'company_name': c.company_name,
         'contact_phone': c.contact_phone,
-        'manager': c.manager,
+        'corporate_principal': c.corporate_principal,
         'department': c.department,
         'payment_terms': c.payment_terms,
         'original_contract_no': c.original_contract_no,
         'original_contract_name': c.original_contract_name,
         'remarks': c.remarks,
-        'created_at': c.created_at.strftime('%Y-%m-%d %H:%M:%S') if c.created_at else ''
+        'created_at': c.created_at.strftime('%Y-%m-%d %H:%M:%S') if c.created_at else '',
+        'executive_partner': c.executive_partner,
+        'filler': c.filler
     } for c in contracts])
 
 
@@ -139,12 +143,14 @@ def create_contract():
         sign_date=datetime.strptime(data['sign_date'], '%Y-%m-%d') if data.get('sign_date') else None,
         company_name=data['company_name'],
         contact_phone=data['contact_phone'],
-        manager=data['manager'],
+        corporate_principal=data['corporate_principal'],
         department=data['department'],
         payment_terms=data.get('payment_terms'),
         original_contract_no=data.get('original_contract_no'),
         original_contract_name=data.get('original_contract_name'),
-        remarks=data.get('remarks')
+        remarks=data.get('remarks'),
+        executive_partner=data.get('executive_partner'),
+        filler=data.get('filler')
     )
 
     db.session.add(contract)
@@ -165,12 +171,14 @@ def update_contract(contract_id):
     contract.sign_date = datetime.strptime(data['sign_date'], '%Y-%m-%d') if data.get('sign_date') else None
     contract.company_name = data['company_name']
     contract.contact_phone = data['contact_phone']
-    contract.manager = data['manager']
+    contract.corporate_principal = data['corporate_principal']
     contract.department = data['department']
     contract.payment_terms = data.get('payment_terms')
     contract.original_contract_no = data.get('original_contract_no')
     contract.original_contract_name = data.get('original_contract_name')
     contract.remarks = data.get('remarks')
+    contract.executive_partner = data.get('executive_partner')
+    contract.filler = data.get('filler')
 
     db.session.commit()
 
@@ -204,9 +212,9 @@ def export_excel():
     # 表头
     headers = [
         '合同编号', '合同名称', '项目号', '合同类型', '平台',
-        '合同金额', '签订日期', '单位名称', '联系电话',
-        '合同负责人', '负责人部门', '支付条件',
-        '原合同编号', '原合同名称', '备注'
+        '合同金额', '签订日期', '单位名称', '企业负责人', '联系电话',
+        '执行合伙人', '填表人', '负责人部门',
+        '原合同编号', '备注'
     ]
 
     for col, header in enumerate(headers, 1):
@@ -226,16 +234,16 @@ def export_excel():
         ws.cell(row=row, column=6).value = float(contract.contract_amount) if contract.contract_amount else ''
         ws.cell(row=row, column=7).value = contract.sign_date.strftime('%Y-%m-%d') if contract.sign_date else ''
         ws.cell(row=row, column=8).value = contract.company_name
-        ws.cell(row=row, column=9).value = contract.contact_phone
-        ws.cell(row=row, column=10).value = contract.manager
-        ws.cell(row=row, column=11).value = contract.department
-        ws.cell(row=row, column=12).value = contract.payment_terms
-        ws.cell(row=row, column=13).value = contract.original_contract_no
-        ws.cell(row=row, column=14).value = contract.original_contract_name
+        ws.cell(row=row, column=9).value = contract.corporate_principal
+        ws.cell(row=row, column=10).value = contract.contact_phone
+        ws.cell(row=row, column=11).value = contract.executive_partner
+        ws.cell(row=row, column=12).value = contract.filler
+        ws.cell(row=row, column=13).value = contract.department
+        ws.cell(row=row, column=14).value = contract.original_contract_no
         ws.cell(row=row, column=15).value = contract.remarks
 
     # 调整列宽
-    column_widths = [15, 30, 20, 12, 10, 12, 12, 25, 15, 12, 18, 30, 15, 30, 30]
+    column_widths = [15, 30, 20, 12, 10, 12, 12, 25, 12, 15, 12, 12, 18, 15, 30]
     for col, width in enumerate(column_widths, 1):
         ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = width
 

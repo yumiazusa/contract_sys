@@ -348,12 +348,14 @@
         .col-amount { width: 120px; text-align: right; }
         .col-date { width: 110px; }
         .col-company { width: 200px; }
+        .col-manager { width: 120px; } /* Corporate Principal */
         .col-phone { width: 120px; }
-        .col-manager { width: 100px; }
+        .col-exec { width: 120px; } /* Executive Partner */
+        .col-filler { width: 120px; } /* Filler */
         .col-dept { width: 120px; }
-        .col-payment { width: 200px; }
+        /* .col-payment { width: 200px; } Removed */
         .col-orig-no { width: 150px; }
-        .col-orig-name { width: 200px; }
+        /* .col-orig-name { width: 200px; } Removed */
         .col-remarks { width: 180px; }
         .col-actions { width: 140px; text-align: center; position: sticky; right: 0; background: white; box-shadow: -2px 0 5px rgba(0,0,0,0.05); z-index: 20; }
         th.col-actions { background: #F8FAFC; }
@@ -584,12 +586,23 @@
                         <input type="text" id="companyName" required placeholder="委托单位">
                     </div>
                     <div class="form-group">
+                        <label>企业负责人</label>
+                        <input type="text" id="corporatePrincipal" required placeholder="企业负责人">
+                    </div>
+                    <div class="form-group">
                         <label>联系电话</label>
                         <input type="text" id="contactPhone" required placeholder="联系电话">
                     </div>
+                </div>
+
+                <div class="form-row">
                     <div class="form-group">
-                        <label>负责人</label>
-                        <input type="text" id="manager" required placeholder="负责人">
+                        <label>执行合伙人</label>
+                        <input type="text" id="executivePartner" placeholder="执行合伙人">
+                    </div>
+                    <div class="form-group">
+                        <label>填表人</label>
+                        <input type="text" id="filler" placeholder="填表人">
                     </div>
                     <div class="form-group">
                         <label>所属部门</label>
@@ -686,12 +699,12 @@
                                 <th class="col-amount">金额</th>
                                 <th class="col-date">日期</th>
                                 <th class="col-company">单位</th>
+                                <th class="col-manager">企业负责人</th>
                                 <th class="col-phone">电话</th>
-                                <th class="col-manager">负责人</th>
+                                <th class="col-exec">执行合伙人</th>
+                                <th class="col-filler">填表人</th>
                                 <th class="col-dept">部门</th>
-                                <th class="col-payment">支付条件</th>
                                 <th class="col-orig-no">原合同号</th>
-                                <th class="col-orig-name">原合同名</th>
                                 <th class="col-remarks">备注</th>
                                 <th class="col-actions">操作</th>
                             </tr>
@@ -879,12 +892,14 @@
                 sign_date: document.getElementById('signDate').value,
                 company_name: document.getElementById('companyName').value,
                 contact_phone: document.getElementById('contactPhone').value,
-                manager: document.getElementById('manager').value,
+                corporate_principal: document.getElementById('corporatePrincipal').value,
                 department: document.getElementById('department').value,
                 payment_terms: document.getElementById('paymentTerms').value,
                 original_contract_no: document.getElementById('originalContractNo').value,
                 original_contract_name: document.getElementById('originalContractName').value,
-                remarks: document.getElementById('remarks').value
+                remarks: document.getElementById('remarks').value,
+                executive_partner: document.getElementById('executivePartner').value,
+                filler: document.getElementById('filler').value
             };
 
             const editId = this.dataset.editId;
