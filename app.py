@@ -13,7 +13,7 @@ app.secret_key = 'your-secret-key-change-this-in-production'
 # 临时切换到本地SQLite数据库以解决远程连接权限问题
 #app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///contract.db'
 #原MySQL配置（如需恢复远程连接，请取消注释下方代码并注释掉上方SQLite配置）
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://ProjectDB:4100282Ly@47.108.254.13/projectdb'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://ProjectDB:4100282Ly%40@47.108.254.13/projectdb'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
