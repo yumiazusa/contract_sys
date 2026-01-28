@@ -52,6 +52,7 @@ class Contract(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
     executive_partner = db.Column(db.String(255))
     filler = db.Column(db.String(255))
+    status = db.Column(db.String(20), default='active')  # active, invalid
 
 
 # 生成合同编号
@@ -145,7 +146,18 @@ def dashboard():
 # 获取合同列表
 @app.route('/api/contracts', methods=['GET'])
 def get_contracts():
-    contracts = Contract.query.order_by(Contract.created_at.desc()).all()
+    query = Contract.query
+
+    # 筛选
+    exec_partner = request.args.get('executive_partner')
+    filler = request.args.get('filler')
+    
+    if exec_partner:
+        query = query.filter(Contract.executive_partner == exec_partner)
+    if filler:
+        query = query.filter(Contract.filler == filler)
+
+    contracts = query.order_by(Contract.created_at.desc()).all()
     return jsonify([{
         'id': c.id,
         'contract_no': c.contract_no,
@@ -165,8 +177,21 @@ def get_contracts():
         'remarks': c.remarks,
         'created_at': c.created_at.strftime('%Y-%m-%d %H:%M:%S') if c.created_at else '',
         'executive_partner': c.executive_partner,
-        'filler': c.filler
+        'filler': c.filler,
+        'status': c.status
     } for c in contracts])
+
+
+# 获取筛选选项
+@app.route('/api/contracts/filter_options', methods=['GET'])
+def get_filter_options():
+    partners = db.session.query(Contract.executive_partner).distinct().filter(Contract.executive_partner != None).all()
+    fillers = db.session.query(Contract.filler).distinct().filter(Contract.filler != None).all()
+    
+    return jsonify({
+        'executive_partners': [p[0] for p in partners if p[0]],
+        'fillers': [f[0] for f in fillers if f[0]]
+    })
 
 
 # 创建合同
@@ -194,7 +219,8 @@ def create_contract():
         original_contract_name=data.get('original_contract_name'),
         remarks=data.get('remarks'),
         executive_partner=data.get('executive_partner'),
-        filler=data.get('filler')
+        filler=data.get('filler'),
+        status='active'
     )
 
     db.session.add(contract)
@@ -207,6 +233,9 @@ def create_contract():
 @app.route('/api/contracts/<int:contract_id>', methods=['PUT'])
 def update_contract(contract_id):
     contract = Contract.query.get_or_404(contract_id)
+    if contract.status == 'invalid':
+        return jsonify({'success': False, 'message': '已作废的合同不可编辑'}), 400
+        
     data = request.json
 
     contract.contract_name = data['contract_name']
@@ -229,10 +258,52 @@ def update_contract(contract_id):
     return jsonify({'success': True})
 
 
+# 作废合同
+@app.route('/api/contracts/<int:contract_id>/void', methods=['POST'])
+def void_contract(contract_id):
+    contract = Contract.query.get_or_404(contract_id)
+    contract.status = 'invalid'
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+# 检查是否可以删除
+@app.route('/api/contracts/<int:contract_id>/check_delete', methods=['GET'])
+def check_delete(contract_id):
+    contract = Contract.query.get_or_404(contract_id)
+    
+    # 检查该合同编号之后是否已有其他项目被创建
+    # 逻辑：查询同类型同平台下，ID比当前大的合同
+    subsequent = Contract.query.filter(
+        Contract.contract_type == contract.contract_type,
+        Contract.platform == contract.platform,
+        Contract.id > contract.id
+    ).first()
+    
+    if subsequent:
+        return jsonify({
+            'can_delete': False,
+            'message': '该合同编号后续已有项目创建，不可删除。如需停用，请使用“作废”功能。'
+        })
+    else:
+        return jsonify({'can_delete': True})
+
+
 # 删除合同
 @app.route('/api/contracts/<int:contract_id>', methods=['DELETE'])
 def delete_contract(contract_id):
     contract = Contract.query.get_or_404(contract_id)
+    
+    # 再次检查安全性
+    subsequent = Contract.query.filter(
+        Contract.contract_type == contract.contract_type,
+        Contract.platform == contract.platform,
+        Contract.id > contract.id
+    ).first()
+    
+    if subsequent:
+        return jsonify({'success': False, 'message': '该合同编号后续已有项目创建，不可删除。'}), 400
+        
     db.session.delete(contract)
     db.session.commit()
 
@@ -255,10 +326,10 @@ def export_excel():
 
     # 表头
     headers = [
-        '合同编号', '合同名称', '项目号', '合同类型', '平台',
-        '合同金额', '签订日期', '单位名称', '企业负责人', '联系电话',
-        '执行合伙人', '填表人', '负责人部门',
-        '原合同编号', '备注'
+        '序号', '合同编号', '合同名称', '项目号', '合同类型', '所属平台',
+        '合同金额 (元)', '签订日期', '单位名称', '企业负责人', '联系电话',
+        '执行合伙人', '填表人', '所属部门', '支付条件',
+        '原合同编号', '原合同名称', '状态', '备注', '创建时间', '更新时间'
     ]
 
     for col, header in enumerate(headers, 1):
@@ -269,25 +340,33 @@ def export_excel():
         cell.alignment = Alignment(horizontal='center', vertical='center')
 
     # 数据行
-    for row, contract in enumerate(contracts, 2):
-        ws.cell(row=row, column=1).value = contract.contract_no
-        ws.cell(row=row, column=2).value = contract.contract_name
-        ws.cell(row=row, column=3).value = contract.project_no
-        ws.cell(row=row, column=4).value = contract.contract_type
-        ws.cell(row=row, column=5).value = contract.platform
-        ws.cell(row=row, column=6).value = float(contract.contract_amount) if contract.contract_amount else ''
-        ws.cell(row=row, column=7).value = contract.sign_date.strftime('%Y-%m-%d') if contract.sign_date else ''
-        ws.cell(row=row, column=8).value = contract.company_name
-        ws.cell(row=row, column=9).value = contract.corporate_principal
-        ws.cell(row=row, column=10).value = contract.contact_phone
-        ws.cell(row=row, column=11).value = contract.executive_partner
-        ws.cell(row=row, column=12).value = contract.filler
-        ws.cell(row=row, column=13).value = contract.department
-        ws.cell(row=row, column=14).value = contract.original_contract_no
-        ws.cell(row=row, column=15).value = contract.remarks
+    total_count = len(contracts)
+    for i, contract in enumerate(contracts):
+        row = i + 2
+        ws.cell(row=row, column=1).value = total_count - i  # 自然序号倒序
+        ws.cell(row=row, column=2).value = contract.contract_no
+        ws.cell(row=row, column=3).value = contract.contract_name
+        ws.cell(row=row, column=4).value = contract.project_no
+        ws.cell(row=row, column=5).value = contract.contract_type
+        ws.cell(row=row, column=6).value = contract.platform
+        ws.cell(row=row, column=7).value = float(contract.contract_amount) if contract.contract_amount else 0
+        ws.cell(row=row, column=8).value = contract.sign_date.strftime('%Y-%m-%d') if contract.sign_date else ''
+        ws.cell(row=row, column=9).value = contract.company_name
+        ws.cell(row=row, column=10).value = contract.corporate_principal
+        ws.cell(row=row, column=11).value = contract.contact_phone
+        ws.cell(row=row, column=12).value = contract.executive_partner
+        ws.cell(row=row, column=13).value = contract.filler
+        ws.cell(row=row, column=14).value = contract.department
+        ws.cell(row=row, column=15).value = contract.payment_terms
+        ws.cell(row=row, column=16).value = contract.original_contract_no
+        ws.cell(row=row, column=17).value = contract.original_contract_name
+        ws.cell(row=row, column=18).value = '已作废' if contract.status == 'invalid' else '正常'
+        ws.cell(row=row, column=19).value = contract.remarks
+        ws.cell(row=row, column=20).value = contract.created_at.strftime('%Y-%m-%d %H:%M:%S') if contract.created_at else ''
+        ws.cell(row=row, column=21).value = contract.updated_at.strftime('%Y-%m-%d %H:%M:%S') if contract.updated_at else ''
 
     # 调整列宽
-    column_widths = [15, 30, 20, 12, 10, 12, 12, 25, 12, 15, 12, 12, 18, 15, 30]
+    column_widths = [8, 15, 30, 20, 12, 12, 15, 12, 25, 12, 15, 12, 12, 18, 30, 15, 25, 10, 30, 20, 20]
     for col, width in enumerate(column_widths, 1):
         ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = width
 
@@ -300,7 +379,7 @@ def export_excel():
         output,
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         as_attachment=True,
-        download_name=f'合同列表_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+        download_name=f'合同列表_{datetime.now().strftime("%Y%m%d")}.xlsx'
     )
 
 
