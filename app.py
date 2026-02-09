@@ -61,18 +61,30 @@ def generate_contract_no(contract_type, platform):
     platform_code = 'JQ' if platform == '金乾' else 'JC'
 
     # 查询当前平台和类型的最大流水号
+    # 使用 like 查询确保匹配正确的前缀（年份可能会变）
+    year_prefix = f"{prefix}2026{platform_code}"
     last_contract = Contract.query.filter(
-        Contract.contract_type == contract_type,
-        Contract.platform == platform
-    ).order_by(Contract.id.desc()).first()
+        Contract.contract_no.like(f"{year_prefix}%")
+    ).order_by(Contract.contract_no.desc()).first()
 
     if last_contract:
-        last_no = int(last_contract.contract_no[-4:])
-        new_no = last_no + 1
+        try:
+            last_no = int(last_contract.contract_no[-4:])
+            new_no = last_no + 1
+        except ValueError:
+            new_no = 1
     else:
         new_no = 1
+    
+    # 最终生成
+    final_no = f"{year_prefix}{new_no:04d}"
+    
+    # 双重保险：检查是否存在，如果存在则递增直到唯一
+    while Contract.query.filter_by(contract_no=final_no).first():
+        new_no += 1
+        final_no = f"{year_prefix}{new_no:04d}"
 
-    return f"{prefix}2026{platform_code}{new_no:04d}"
+    return final_no
 
 
 # 登录页面
@@ -202,24 +214,29 @@ def create_contract():
     # 生成合同编号
     contract_no = generate_contract_no(data['contract_type'], data['platform'])
 
+    # 处理空字符串为 None，防止数据库报错或逻辑错误
+    def get_val(key):
+        val = data.get(key)
+        return val if val != '' else None
+
     contract = Contract(
         contract_no=contract_no,
         contract_name=data['contract_name'],
-        project_no=data.get('project_no'),
+        project_no=get_val('project_no'),
         contract_type=data['contract_type'],
         platform=data['platform'],
-        contract_amount=data.get('contract_amount'),
-        sign_date=datetime.strptime(data['sign_date'], '%Y-%m-%d') if data.get('sign_date') else None,
+        contract_amount=get_val('contract_amount'),
+        sign_date=datetime.strptime(data['sign_date'], '%Y-%m-%d') if get_val('sign_date') else None,
         company_name=data['company_name'],
         contact_phone=data['contact_phone'],
         corporate_principal=data['corporate_principal'],
         department=data['department'],
-        payment_terms=data.get('payment_terms'),
-        original_contract_no=data.get('original_contract_no'),
-        original_contract_name=data.get('original_contract_name'),
-        remarks=data.get('remarks'),
-        executive_partner=data.get('executive_partner'),
-        filler=data.get('filler'),
+        payment_terms=get_val('payment_terms'),
+        original_contract_no=get_val('original_contract_no'),
+        original_contract_name=get_val('original_contract_name'),
+        remarks=get_val('remarks'),
+        executive_partner=get_val('executive_partner'),
+        filler=get_val('filler'),
         status='active'
     )
 

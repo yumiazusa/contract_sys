@@ -1346,13 +1346,34 @@
         // 提交新建
         document.getElementById('contractForm').addEventListener('submit', function(e) {
             e.preventDefault();
+            
+            // 基础校验
+            const signDate = document.getElementById('signDate').value;
+            if (signDate) {
+                const year = new Date(signDate).getFullYear();
+                if (year < 2000 || year > 2100) {
+                    showAlert('签订日期的年份必须在 2000-2100 之间');
+                    return;
+                }
+            }
+
+            // 补充协议特殊校验
+            const contractType = document.getElementById('contractType').value;
+            if (contractType === '补充协议') {
+                const origNo = document.getElementById('originalContractNo').value;
+                if (!origNo) {
+                    showAlert('补充协议必须填写原合同编号');
+                    return;
+                }
+            }
+
             const formData = {
                 contract_name: document.getElementById('contractName').value,
-                contract_type: document.getElementById('contractType').value,
+                contract_type: contractType,
                 platform: document.getElementById('platform').value,
                 project_no: document.getElementById('projectNo').value,
                 contract_amount: document.getElementById('contractAmount').value,
-                sign_date: document.getElementById('signDate').value,
+                sign_date: signDate,
                 company_name: document.getElementById('companyName').value,
                 contact_phone: document.getElementById('contactPhone').value,
                 corporate_principal: document.getElementById('corporatePrincipal').value,
@@ -1373,11 +1394,17 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    showAlert('创建成功');
+                    showAlert('创建成功', '成功');
                     clearForm();
                     loadContracts();
-                    loadFilterOptions(); // 刷新筛选选项
+                    loadFilterOptions(); 
+                } else {
+                    showAlert(data.message || '提交失败，请检查填写信息', '错误');
                 }
+            })
+            .catch(err => {
+                showAlert('网络错误或服务器异常', '系统错误');
+                console.error(err);
             });
         });
 
