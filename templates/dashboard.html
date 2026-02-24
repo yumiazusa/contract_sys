@@ -366,7 +366,7 @@
         /* Column Widths */
         .col-no { width: 150px; }
         .col-name { width: 220px; }
-        .col-project { width: 150px; }
+        .col-project { width: 120px; }
         .col-type { width: 100px; }
         .col-platform { width: 80px; }
         .col-amount { width: 120px; text-align: right; }
@@ -381,8 +381,7 @@
         .col-orig-no { width: 150px; }
         .col-orig-name { width: 200px; }
         .col-remarks { width: 180px; }
-        .col-status { width: 100px; text-align: center; }
-        .col-actions { width: 200px; text-align: center; position: sticky; right: 0; background: white; box-shadow: -2px 0 5px rgba(0,0,0,0.05); z-index: 20; white-space: nowrap; }
+        .col-actions { width: 220px; text-align: center; position: sticky; right: 0; background: white; box-shadow: -2px 0 5px rgba(0,0,0,0.05); z-index: 20; }
         th.col-actions { background: #F8FAFC; }
 
         tr:last-child td {
@@ -427,6 +426,62 @@
 
         .hidden { display: none; }
 
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 12px;
+            }
+            
+            .header {
+                flex-direction: column;
+                gap: 12px;
+                align-items: flex-start;
+            }
+
+            .header-right {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .stat-grid {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+
+            .filter-bar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .filter-bar select, 
+            .filter-bar input, 
+            .filter-bar button {
+                width: 100%;
+            }
+
+            .table-container {
+                border-radius: 8px;
+                box-shadow: none;
+                border: 1px solid #E2E8F0;
+            }
+
+            /* Adjust Modal for Mobile */
+            .modal-content {
+                width: 95%;
+                padding: 20px;
+                max-height: 95vh;
+            }
+            
+            /* Card padding adjustment */
+            .card {
+                padding: 20px;
+            }
+        }
         /* Contract Preview */
         .contract-preview {
             background: #FFFBEB;
@@ -448,105 +503,49 @@
 
         /* Modal Styles */
         .modal {
-            display: none;
-            position: fixed;
-            top: 0;
+            display: none; 
+            position: fixed; 
+            z-index: 1000; 
             left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(15, 23, 42, 0.5);
-            backdrop-filter: blur(4px);
-            z-index: 1000;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .modal.show {
-            display: flex;
-        }
-
-        .modal-content {
-            background: white;
-            border-radius: 16px;
-            width: 90%;
-            max-width: 800px;
-            max-height: 90vh;
-            overflow-y: auto;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
-            position: relative;
-            padding: 32px;
-        }
-
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 24px;
-        }
-
-        .modal-close {
-            background: none;
-            border: none;
-            color: var(--text-secondary);
-            cursor: pointer;
-            padding: 4px;
-            border-radius: 4px;
-            transition: background 0.2s;
-        }
-
-        .modal-close:hover {
-            background: #F1F5F9;
-        }
-
-        /* Void Row Style */
-        .row-void {
-            background-color: #f5f5f5 !important;
-            opacity: 0.8;
+            top: 0;
+            width: 100%; 
+            height: 100%; 
+            overflow: auto; 
+            background-color: rgba(0,0,0,0.5); 
+            backdrop-filter: blur(5px);
         }
         
-        .row-void td {
-            color: #94A3B8 !important;
+        .modal-content {
+            background-color: #fff;
+            margin: 5% auto; 
+            padding: 30px; 
+            border: 1px solid #888; 
+            width: 800px; 
+            max-width: 90%;
+            border-radius: 16px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            position: relative;
+            animation: modalFadeIn 0.3s;
+        }
+        
+        @keyframes modalFadeIn {
+            from {opacity: 0; transform: translateY(-20px);}
+            to {opacity: 1; transform: translateY(0);}
         }
 
-        .status-void-tag {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: 600;
-            border: 1px solid #EF4444;
-            color: #EF4444;
-            background: white;
-        }
-
-        /* Filter Badges */
-        .filter-tags {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 12px;
-            flex-wrap: wrap;
-        }
-
-        .filter-tag {
-            background: #EFF6FF;
-            color: #3B82F6;
-            padding: 4px 12px;
-            border-radius: 999px;
-            font-size: 12px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            border: 1px solid #DBEAFE;
-        }
-
-        .filter-tag-close {
+        .close-modal {
+            position: absolute;
+            top: 20px;
+            right: 24px;
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
             cursor: pointer;
-            display: flex;
-            align-items: center;
+            z-index: 10;
         }
-
-        .filter-tag-close:hover {
-            color: #1D4ED8;
+        
+        .close-modal:hover {
+            color: #000;
         }
 
         /* Responsive */
@@ -638,24 +637,26 @@
             </div>
         </div>
 
-        <!-- Create Form -->
-        <div class="card">
-            <div class="card-header">
-                <h2 class="card-title">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                    </svg>
-                    新建合同
-                </h2>
-            </div>
+        <!-- Contract Modal -->
+        <div id="contractModal" class="modal">
+            <div class="modal-content">
+                <span class="close-modal" onclick="closeModal()">&times;</span>
+                <div class="card-header">
+                    <h2 class="card-title" id="modalTitle">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                        <span id="modalTitleText">新建合同</span>
+                    </h2>
+                </div>
             
-            <div class="contract-preview" id="contractPreview">
-                <div style="font-size: 12px; color: #94A3B8; margin-bottom: 4px;">编号预览</div>
-                <div class="contract-preview-value" id="previewNumber"></div>
-            </div>
+                <div class="contract-preview" id="contractPreview">
+                    <div style="font-size: 12px; color: #94A3B8; margin-bottom: 4px;">编号预览</div>
+                    <div class="contract-preview-value" id="previewNumber"></div>
+                </div>
 
-            <form id="contractForm">
+                <form id="contractForm">
                 <div class="form-row">
                     <div class="form-group">
                         <label>合同名称</label>
@@ -767,6 +768,7 @@
                 </div>
             </form>
         </div>
+    </div>
 
         <!-- Contract List -->
         <div class="card">
@@ -782,14 +784,23 @@
                     </svg>
                     合同列表
                 </h2>
-                <button class="btn btn-secondary" onclick="exportExcel()">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="7 10 12 15 17 10"></polyline>
-                        <line x1="12" y1="15" x2="12" y2="3"></line>
-                    </svg>
-                    导出 Excel
-                </button>
+                <div style="display: flex; gap: 12px;">
+                    <button class="btn btn-primary" onclick="openModal('create')">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        新建合同
+                    </button>
+                    <button class="btn btn-secondary" onclick="exportExcel()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        导出 Excel
+                    </button>
+                </div>
             </div>
 
             <div class="filter-bar">
@@ -805,12 +816,6 @@
                     <option value="金乾">金乾</option>
                     <option value="俊成">俊成</option>
                 </select>
-                <select id="filterExec" onchange="filterContracts()">
-                    <option value="">所有执行合伙人</option>
-                </select>
-                <select id="filterFiller" onchange="filterContracts()">
-                    <option value="">所有填表人</option>
-                </select>
                 <button class="btn btn-secondary" onclick="resetFilters()">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M2.5 2v6h6M21.5 22v-6h-6"></path>
@@ -820,14 +825,11 @@
                 </button>
             </div>
 
-            <div class="filter-tags" id="activeFilterTags"></div>
-
             <div class="table-container">
                 <div class="table-responsive">
                     <table id="contractTable">
                         <thead>
                             <tr>
-                                <th class="col-index" style="width: 60px;">序号</th>
                                 <th class="col-no">编号</th>
                                 <th class="col-name">合同名称</th>
                                 <th class="col-project">项目号</th>
@@ -844,7 +846,6 @@
                                 <th class="col-orig-no">原合同编号</th>
                                 <th class="col-orig-name">原合同名称</th>
                                 <th class="col-remarks">备注</th>
-                                <th class="col-status">状态</th>
                                 <th class="col-actions">操作</th>
                             </tr>
                         </thead>
@@ -857,207 +858,8 @@
         </div>
     </main>
 
-    <!-- Edit Modal -->
-    <div id="editModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 class="card-title">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                    </svg>
-                    修改合同信息
-                </h2>
-                <button class="modal-close" onclick="closeModal('editModal')">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>
-                </button>
-            </div>
-            <form id="editForm">
-                <input type="hidden" id="editId">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>合同名称</label>
-                        <input type="text" id="editContractName" required>
-                    </div>
-                    <div class="form-group">
-                        <label>合同类型</label>
-                        <select id="editContractType" required>
-                            <option value="普通合同">普通合同</option>
-                            <option value="补充协议">补充协议</option>
-                            <option value="框架合同">框架合同</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>所属平台</label>
-                        <select id="editPlatform" required>
-                            <option value="金乾">金乾</option>
-                            <option value="俊成">俊成</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>项目号</label>
-                        <input type="text" id="editProjectNo">
-                    </div>
-                    <div class="form-group">
-                        <label>金额 (元)</label>
-                        <input type="number" id="editContractAmount" step="0.01">
-                    </div>
-                    <div class="form-group">
-                        <label>签订日期</label>
-                        <input type="date" id="editSignDate">
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>单位名称</label>
-                        <input type="text" id="editCompanyName" required>
-                    </div>
-                    <div class="form-group">
-                        <label>企业负责人</label>
-                        <input type="text" id="editCorporatePrincipal" required>
-                    </div>
-                    <div class="form-group">
-                        <label>联系电话</label>
-                        <input type="text" id="editContactPhone" required>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>执行合伙人</label>
-                        <input type="text" id="editExecutivePartner">
-                    </div>
-                    <div class="form-group">
-                        <label>填表人</label>
-                        <input type="text" id="editFiller">
-                    </div>
-                    <div class="form-group">
-                        <label>所属部门</label>
-                        <select id="editDepartment" required>
-                            <option value="业务1组(房地产)">业务1组(房地产)</option>
-                            <option value="业务2组(固定资产)">业务2组(固定资产)</option>
-                            <option value="业务3组(企业价值)">业务3组(企业价值)</option>
-                            <option value="矿业权组">矿业权组</option>
-                            <option value="其他">其他</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-group" style="margin-bottom: 20px;">
-                    <label>支付条件</label>
-                    <textarea id="editPaymentTerms" rows="2"></textarea>
-                </div>
-                <div class="form-group" style="margin-bottom: 20px;">
-                    <label>备注</label>
-                    <textarea id="editRemarks" rows="2"></textarea>
-                </div>
-                <div style="display: flex; justify-content: flex-end; gap: 12px;">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('editModal')">取消</button>
-                    <button type="submit" class="btn btn-primary">提交修改</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Confirm Void Modal -->
-    <div id="voidModal" class="modal">
-        <div class="modal-content" style="max-width: 500px;">
-            <div class="modal-header">
-                <h2 class="card-title" style="color: #EF4444;">确认作废</h2>
-            </div>
-            <div style="margin-bottom: 24px; line-height: 1.6; color: #1E293B;">
-                <p>⚠️ <strong>警告：</strong></p>
-                <p>一旦选择作废，则该合同编号将被标记为作废状态，且合同内容不可再编辑。</p>
-                <p>此操作是为了保持编号序列的连续性，已提交的编号将永久占用。</p>
-            </div>
-            <div style="display: flex; justify-content: flex-end; gap: 12px;">
-                <button class="btn btn-secondary" onclick="closeModal('voidModal')">取消</button>
-                <button id="confirmVoidBtn" class="btn btn-primary" style="background: #EF4444;">确认作废</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Confirm Delete Modal -->
-    <div id="deleteModal" class="modal">
-        <div class="modal-content" style="max-width: 500px;">
-            <div class="modal-header">
-                <h2 class="card-title">确认删除</h2>
-            </div>
-            <p style="margin-bottom: 24px; color: #1E293B;">您确定要永久删除该合同记录吗？删除后将无法恢复。</p>
-            <div style="display: flex; justify-content: flex-end; gap: 12px;">
-                <button class="btn btn-secondary" onclick="closeModal('deleteModal')">取消</button>
-                <button id="confirmDeleteBtn" class="btn btn-primary" style="background: #EF4444;">确认删除</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Alert Modal (Generic) -->
-    <div id="alertModal" class="modal">
-        <div class="modal-content" style="max-width: 500px;">
-            <div class="modal-header">
-                <h2 id="alertTitle" class="card-title">提示</h2>
-            </div>
-            <p id="alertMessage" style="margin-bottom: 24px; color: #1E293B;"></p>
-            <div style="display: flex; justify-content: flex-end;">
-                <button class="btn btn-primary" onclick="closeModal('alertModal')">确定</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Confirm Export Modal -->
-    <div id="exportConfirmModal" class="modal">
-        <div class="modal-content" style="max-width: 500px;">
-            <div class="modal-header">
-                <h2 class="card-title">导出确认</h2>
-            </div>
-            <p style="margin-bottom: 24px; color: #1E293B;">您今天已经导出过一个版本的合同列表。继续导出将下载最新数据（如果文件名相同，浏览器通常会自动更名）。是否继续导出并覆盖参考？</p>
-            <div style="display: flex; justify-content: flex-end; gap: 12px;">
-                <button class="btn btn-secondary" onclick="closeModal('exportConfirmModal')">取消</button>
-                <button class="btn btn-primary" onclick="executeExport()">确认导出</button>
-            </div>
-        </div>
-    </div>
-
     <script>
         let allContracts = [];
-
-        // 初始化
-        function init() {
-            loadFilterOptions();
-            loadContracts();
-        }
-
-        // 加载筛选选项
-        function loadFilterOptions() {
-            fetch('/api/contracts/filter_options')
-                .then(r => r.json())
-                .then(data => {
-                    const execSelect = document.getElementById('filterExec');
-                    const fillerSelect = document.getElementById('filterFiller');
-                    
-                    // 保存当前选中的值
-                    const currentExec = execSelect.value;
-                    const currentFiller = fillerSelect.value;
-
-                    // 清空并重新填充
-                    execSelect.innerHTML = '<option value="">所有执行合伙人</option>';
-                    fillerSelect.innerHTML = '<option value="">所有填表人</option>';
-
-                    data.executive_partners.forEach(p => {
-                        execSelect.innerHTML += `<option value="${p}">${p}</option>`;
-                    });
-                    data.fillers.forEach(f => {
-                        fillerSelect.innerHTML += `<option value="${f}">${f}</option>`;
-                    });
-
-                    // 恢复选中
-                    execSelect.value = currentExec;
-                    fillerSelect.value = currentFiller;
-                });
-        }
 
         function updateStats(contracts) {
             const total = contracts.length;
@@ -1074,23 +876,12 @@
         }
 
         function loadContracts() {
-            const exec = document.getElementById('filterExec').value;
-            const filler = document.getElementById('filterFiller').value;
-            
-            let url = '/api/contracts';
-            const params = new URLSearchParams();
-            if (exec) params.append('executive_partner', exec);
-            if (filler) params.append('filler', filler);
-            
-            if (params.toString()) url += '?' + params.toString();
-
-            fetch(url)
+            fetch('/api/contracts')
                 .then(response => response.json())
                 .then(data => {
                     allContracts = data;
                     updateStats(data);
                     renderTable(data);
-                    updateFilterTags();
                 });
         }
 
@@ -1099,16 +890,12 @@
             tbody.innerHTML = '';
             
             if (contracts.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="19" style="text-align:center; color:#64748B; padding: 40px;">暂无数据</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="18" style="text-align:center; color:#64748B; padding: 40px;">暂无数据</td></tr>';
                 return;
             }
 
-            contracts.forEach((contract, index) => {
+            contracts.forEach(contract => {
                 const row = tbody.insertRow();
-                if (contract.status === 'invalid') {
-                    row.classList.add('row-void');
-                }
-
                 const amount = contract.contract_amount ? 
                     `¥${parseFloat(contract.contract_amount).toLocaleString('zh-CN')}` : '-';
                 
@@ -1116,14 +903,12 @@
                 if (contract.contract_type === '框架合同') badgeClass = 'badge-purple';
                 if (contract.contract_type === '补充协议') badgeClass = 'badge-green';
 
-                const isVoid = contract.status === 'invalid';
-                const statusTag = isVoid ? '<span class="status-void-tag">已作废</span>' : '<span class="badge badge-green" style="border: 1px solid #059669; background: white;">正常</span>';
-
+                const projectNo = contract.project_no ? contract.project_no.replace(/;/g, ';<br>') : '-';
+                
                 row.innerHTML = `
-                    <td style="text-align: center; color: #64748B;">${contracts.length - index}</td>
                     <td style="font-family: monospace; font-weight: 600; color: #334155;">${contract.contract_no}</td>
                     <td style="font-weight: 500;">${contract.contract_name}</td>
-                    <td>${contract.project_no || '-'}</td>
+                    <td>${projectNo}</td>
                     <td><span class="badge ${badgeClass}">${contract.contract_type}</span></td>
                     <td>${contract.platform}</td>
                     <td style="font-family: monospace; font-weight: 600; text-align: right;">${amount}</td>
@@ -1137,14 +922,10 @@
                     <td>${contract.original_contract_no || '-'}</td>
                     <td>${contract.original_contract_name || '-'}</td>
                     <td>${contract.remarks || '-'}</td>
-                    <td class="col-status">${statusTag}</td>
                     <td class="col-actions">
-                        <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 12px; display: inline-block;" 
-                            onclick="editContract(${contract.id})" ${isVoid ? 'disabled title="已作废不可编辑"' : ''}>编辑</button>
-                        <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 12px; color: #F59E0B; border-color: #FDE68A; display: inline-block;" 
-                            onclick="voidContract(${contract.id})" ${isVoid ? 'disabled' : ''}>作废</button>
-                        <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 12px; color: #EF4444; border-color: #FECACA; display: inline-block;" 
-                            onclick="deleteContract(${contract.id})">删除</button>
+                        <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 12px;" onclick="editContract(${contract.id})">编辑</button>
+                        <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 12px; color: #F59E0B; border-color: #FCD34D;" onclick="voidContract(${contract.id})">作废</button>
+                        <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 12px; color: #EF4444; border-color: #FECACA;" onclick="deleteContract(${contract.id})">删除</button>
                     </td>
                 `;
             });
@@ -1154,8 +935,7 @@
             const keyword = document.getElementById('filterKeyword').value.toLowerCase();
             const type = document.getElementById('filterType').value;
             const platform = document.getElementById('filterPlatform').value;
-            
-            // 筛选本地数据（针对搜索框、类型、平台）
+
             const filtered = allContracts.filter(c => {
                 const matchKeyword = !keyword || 
                     (c.contract_no && c.contract_no.toLowerCase().includes(keyword)) ||
@@ -1167,68 +947,14 @@
 
                 return matchKeyword && matchType && matchPlatform;
             });
-            
             renderTable(filtered);
-            updateFilterTags();
-        }
-
-        // 监听下拉框变动重新加载
-        document.getElementById('filterExec').addEventListener('change', loadContracts);
-        document.getElementById('filterFiller').addEventListener('change', loadContracts);
-
-        function updateFilterTags() {
-            const tagsContainer = document.getElementById('activeFilterTags');
-            tagsContainer.innerHTML = '';
-            
-            const filters = [
-                { id: 'filterExec', label: '执行合伙人' },
-                { id: 'filterFiller', label: '填表人' },
-                { id: 'filterType', label: '类型' },
-                { id: 'filterPlatform', label: '平台' }
-            ];
-
-            filters.forEach(f => {
-                const el = document.getElementById(f.id);
-                if (el.value) {
-                    tagsContainer.innerHTML += `
-                        <div class="filter-tag">
-                            ${f.label}: ${el.value}
-                            <span class="filter-tag-close" onclick="clearFilter('${f.id}')">×</span>
-                        </div>
-                    `;
-                }
-            });
-        }
-
-        function clearFilter(id) {
-            document.getElementById(id).value = '';
-            loadContracts();
         }
 
         function resetFilters() {
             document.getElementById('filterKeyword').value = '';
             document.getElementById('filterType').value = '';
             document.getElementById('filterPlatform').value = '';
-            document.getElementById('filterExec').value = '';
-            document.getElementById('filterFiller').value = '';
-            loadContracts();
-        }
-
-        // 模态框控制
-        function openModal(id) {
-            document.getElementById(id).classList.add('show');
-            document.body.style.overflow = 'hidden';
-        }
-
-        function closeModal(id) {
-            document.getElementById(id).classList.remove('show');
-            document.body.style.overflow = 'auto';
-        }
-
-        function showAlert(message, title = '提示') {
-            document.getElementById('alertTitle').textContent = title;
-            document.getElementById('alertMessage').textContent = message;
-            openModal('alertModal');
+            renderTable(allContracts);
         }
 
         function handleTypeChange() {
@@ -1263,117 +989,86 @@
         function clearForm() {
             document.getElementById('contractForm').reset();
             document.getElementById('supplementFields').classList.add('hidden');
+            delete document.getElementById('contractForm').dataset.editId;
             updatePreview();
         }
 
-        // 编辑功能
+        // Modal Logic
+        const modal = document.getElementById('contractModal');
+        const modalTitleText = document.getElementById('modalTitleText');
+
+        function openModal(mode, contract = null) {
+            if (mode === 'create') {
+                modalTitleText.textContent = '新建合同';
+                clearForm();
+            } else if (mode === 'edit' && contract) {
+                modalTitleText.textContent = '编辑合同';
+                
+                document.getElementById('contractName').value = contract.contract_name;
+                document.getElementById('contractType').value = contract.contract_type;
+                document.getElementById('platform').value = contract.platform;
+                document.getElementById('projectNo').value = contract.project_no || '';
+                document.getElementById('contractAmount').value = contract.contract_amount || '';
+                document.getElementById('signDate').value = contract.sign_date || '';
+                document.getElementById('companyName').value = contract.company_name;
+                document.getElementById('contactPhone').value = contract.contact_phone;
+                document.getElementById('corporatePrincipal').value = contract.corporate_principal;
+                document.getElementById('executivePartner').value = contract.executive_partner || '';
+                document.getElementById('filler').value = contract.filler || '';
+                document.getElementById('department').value = contract.department;
+                document.getElementById('paymentTerms').value = contract.payment_terms || '';
+                document.getElementById('originalContractNo').value = contract.original_contract_no || '';
+                document.getElementById('originalContractName').value = contract.original_contract_name || '';
+                document.getElementById('remarks').value = contract.remarks || '';
+
+                handleTypeChange();
+                document.getElementById('contractForm').dataset.editId = contract.id;
+            }
+            modal.style.display = 'block';
+        }
+
+        function closeModal() {
+            modal.style.display = 'none';
+        }
+
+        window.onclick = function(event) {
+            if (event.target == modal) {
+                closeModal();
+            }
+        }
+
         function editContract(id) {
             const contract = allContracts.find(c => c.id === id);
             if (contract) {
-                if (contract.status === 'invalid') {
-                    showAlert('已作废的合同不可编辑');
-                    return;
-                }
-                
-                document.getElementById('editId').value = contract.id;
-                document.getElementById('editContractName').value = contract.contract_name;
-                document.getElementById('editContractType').value = contract.contract_type;
-                document.getElementById('editPlatform').value = contract.platform;
-                document.getElementById('editProjectNo').value = contract.project_no || '';
-                document.getElementById('editContractAmount').value = contract.contract_amount || '';
-                document.getElementById('editSignDate').value = contract.sign_date || '';
-                document.getElementById('editCompanyName').value = contract.company_name;
-                document.getElementById('editContactPhone').value = contract.contact_phone;
-                document.getElementById('editCorporatePrincipal').value = contract.corporate_principal;
-                document.getElementById('editExecutivePartner').value = contract.executive_partner || '';
-                document.getElementById('editFiller').value = contract.filler || '';
-                document.getElementById('editDepartment').value = contract.department;
-                document.getElementById('editPaymentTerms').value = contract.payment_terms || '';
-                document.getElementById('editRemarks').value = contract.remarks || '';
-
-                openModal('editModal');
+                openModal('edit', contract);
             }
         }
 
-        // 作废功能
-        let pendingVoidId = null;
         function voidContract(id) {
-            pendingVoidId = id;
-            openModal('voidModal');
+            if (confirm('确认作废该合同？此操作不可逆！')) {
+                fetch(`/api/contracts/${id}/void`, { method: 'POST' })
+                    .then(r => r.json())
+                    .then(d => { if(d.success) loadContracts(); });
+            }
         }
 
-        document.getElementById('confirmVoidBtn').onclick = function() {
-            if (!pendingVoidId) return;
-            fetch(`/api/contracts/${pendingVoidId}/void`, { method: 'POST' })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) {
-                        closeModal('voidModal');
-                        loadContracts();
-                    }
-                });
-        };
-
-        // 删除功能
-        let pendingDeleteId = null;
         function deleteContract(id) {
-            fetch(`/api/contracts/${id}/check_delete`)
-                .then(r => r.json())
-                .then(data => {
-                    if (data.can_delete) {
-                        pendingDeleteId = id;
-                        openModal('deleteModal');
-                    } else {
-                        showAlert(data.message, '不可删除');
-                    }
-                });
+            if (confirm('确认删除?')) {
+                fetch(`/api/contracts/${id}`, { method: 'DELETE' })
+                    .then(r => r.json())
+                    .then(d => { if(d.success) loadContracts(); });
+            }
         }
 
-        document.getElementById('confirmDeleteBtn').onclick = function() {
-            if (!pendingDeleteId) return;
-            fetch(`/api/contracts/${pendingDeleteId}`, { method: 'DELETE' })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) {
-                        closeModal('deleteModal');
-                        loadContracts();
-                    } else {
-                        showAlert(data.message);
-                    }
-                });
-        };
-
-        // 提交新建
         document.getElementById('contractForm').addEventListener('submit', function(e) {
             e.preventDefault();
-            
-            // 基础校验
-            const signDate = document.getElementById('signDate').value;
-            if (signDate) {
-                const year = new Date(signDate).getFullYear();
-                if (year < 2000 || year > 2100) {
-                    showAlert('签订日期的年份必须在 2000-2100 之间');
-                    return;
-                }
-            }
-
-            // 补充协议特殊校验
-            const contractType = document.getElementById('contractType').value;
-            if (contractType === '补充协议') {
-                const origNo = document.getElementById('originalContractNo').value;
-                if (!origNo) {
-                    showAlert('补充协议必须填写原合同编号');
-                    return;
-                }
-            }
-
             const formData = {
                 contract_name: document.getElementById('contractName').value,
-                contract_type: contractType,
+                contract_type: document.getElementById('contractType').value,
                 platform: document.getElementById('platform').value,
                 project_no: document.getElementById('projectNo').value,
                 contract_amount: document.getElementById('contractAmount').value,
-                sign_date: signDate,
+                sign_date: document.getElementById('signDate').value,
                 company_name: document.getElementById('companyName').value,
                 contact_phone: document.getElementById('contactPhone').value,
                 corporate_principal: document.getElementById('corporatePrincipal').value,
@@ -1386,86 +1081,29 @@
                 filler: document.getElementById('filler').value
             };
 
-            fetch('/api/contracts', {
-                method: 'POST',
+            const editId = this.dataset.editId;
+            const url = editId ? `/api/contracts/${editId}` : '/api/contracts';
+            const method = editId ? 'PUT' : 'POST';
+
+            fetch(url, {
+                method: method,
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData)
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    showAlert('创建成功', '成功');
-                    clearForm();
-                    loadContracts();
-                    loadFilterOptions(); 
-                } else {
-                    showAlert(data.message || '提交失败，请检查填写信息', '错误');
-                }
-            })
-            .catch(err => {
-                showAlert('网络错误或服务器异常', '系统错误');
-                console.error(err);
-            });
-        });
-
-        // 提交修改
-        document.getElementById('editForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const id = document.getElementById('editId').value;
-            const formData = {
-                contract_name: document.getElementById('editContractName').value,
-                contract_type: document.getElementById('editContractType').value,
-                platform: document.getElementById('editPlatform').value,
-                project_no: document.getElementById('editProjectNo').value,
-                contract_amount: document.getElementById('editContractAmount').value,
-                sign_date: document.getElementById('editSignDate').value,
-                company_name: document.getElementById('editCompanyName').value,
-                contact_phone: document.getElementById('editContactPhone').value,
-                corporate_principal: document.getElementById('editCorporatePrincipal').value,
-                department: document.getElementById('editDepartment').value,
-                payment_terms: document.getElementById('editPaymentTerms').value,
-                remarks: document.getElementById('editRemarks').value,
-                executive_partner: document.getElementById('editExecutivePartner').value,
-                filler: document.getElementById('editFiller').value
-            };
-
-            fetch(`/api/contracts/${id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    closeModal('editModal');
-                    loadContracts();
-                    loadFilterOptions();
-                } else {
-                    showAlert(data.message);
+                    alert(editId ? '更新成功' : '创建成功');
+                    location.reload();
                 }
             });
         });
 
         function exportExcel() {
-            const lastExportDate = localStorage.getItem('lastExportDate');
-            const today = new Date().toISOString().split('T')[0];
-            
-            if (lastExportDate === today) {
-                openModal('exportConfirmModal');
-            } else {
-                executeExport();
-            }
-        }
-
-        function executeExport() {
-            const today = new Date().toISOString().split('T')[0];
-            localStorage.setItem('lastExportDate', today);
-            closeModal('exportConfirmModal');
             window.location.href = '/api/export/excel';
         }
 
-        // 初始加载
-        init();
+        loadContracts();
     </script>
 </body>
 </htm
