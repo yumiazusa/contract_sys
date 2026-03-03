@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for, session
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import or_
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 import openpyxl
@@ -206,10 +207,77 @@ def get_filter_options():
     })
 
 
+# 检查重复合同
+@app.route('/api/contracts/check_duplicate', methods=['POST'])
+def check_duplicate():
+    data = request.json
+    company_name = data.get('company_name')
+    contract_name = data.get('contract_name')
+    contract_amount = data.get('contract_amount')
+    edit_id = data.get('edit_id')
+
+    if not contract_amount:
+        return jsonify({'duplicates': []})
+        
+    try:
+        # Convert to float for query, though DB is Numeric
+        amount_val = float(contract_amount)
+    except ValueError:
+        return jsonify({'duplicates': []})
+
+    # 查询逻辑：(单位名称 + 合同金额) OR (合同名称 + 合同金额)
+    # 且状态不为作废 (假设作废的不算重复？或者都算？需求说是"历史合同列表"，通常包含所有，但作废的可能不算冲突。
+    # 既然是防止重复提交，通常是防止有效合同重复。我先只查 active 的，或者全部。)
+    # 需求说 "历史合同列表"，没说排除作废。但一般业务逻辑排除 invalid。
+    # 既然没有明确说排除，我先只查 active。
+    
+    query = Contract.query.filter(
+        Contract.status != 'invalid',
+        or_(
+            (Contract.company_name == company_name) & (Contract.contract_amount == amount_val),
+            (Contract.contract_name == contract_name) & (Contract.contract_amount == amount_val)
+        )
+    )
+
+    if edit_id:
+        query = query.filter(Contract.id != edit_id)
+
+    duplicates = query.all()
+
+    return jsonify({
+        'duplicates': [{
+            'id': c.id,
+            'contract_no': c.contract_no,
+            'contract_name': c.contract_name,
+            'project_no': c.project_no,
+            'contract_type': c.contract_type,
+            'platform': c.platform,
+            'contract_amount': str(c.contract_amount) if c.contract_amount else '',
+            'sign_date': c.sign_date.strftime('%Y-%m-%d') if c.sign_date else '',
+            'company_name': c.company_name,
+            'contact_phone': c.contact_phone,
+            'corporate_principal': c.corporate_principal,
+            'department': c.department,
+            'payment_terms': c.payment_terms,
+            'original_contract_no': c.original_contract_no,
+            'original_contract_name': c.original_contract_name,
+            'remarks': c.remarks,
+            'created_at': c.created_at.strftime('%Y-%m-%d %H:%M:%S') if c.created_at else '',
+            'executive_partner': c.executive_partner,
+            'filler': c.filler,
+            'status': c.status
+        } for c in duplicates]
+    })
+
+
 # 创建合同
 @app.route('/api/contracts', methods=['POST'])
 def create_contract():
     data = request.json
+    
+    # 记录强制提交日志
+    if data.get('force_submit'):
+        print(f"[AUDIT] Force submit duplicate contract: {data.get('contract_name')} by {session.get('realname', 'unknown')}")
 
     # 生成合同编号
     contract_no = generate_contract_no(data['contract_type'], data['platform'])
@@ -254,6 +322,9 @@ def update_contract(contract_id):
         return jsonify({'success': False, 'message': '已作废的合同不可编辑'}), 400
         
     data = request.json
+
+    if data.get('force_submit'):
+        print(f"[AUDIT] Force update duplicate contract: {data.get('contract_name')} by {session.get('realname', 'unknown')}")
 
     contract.contract_name = data['contract_name']
     contract.project_no = data.get('project_no')
