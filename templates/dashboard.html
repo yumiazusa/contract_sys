@@ -341,7 +341,7 @@
 
         th {
             background: #F8FAFC;
-            text-align: left;
+            text-align: center; /* Changed from left to center */
             padding: 12px 16px;
             font-size: 12px;
             font-weight: 600;
@@ -362,27 +362,28 @@
             white-space: normal; /* Allow text wrapping */
             word-wrap: break-word;
             vertical-align: top;
+            text-align: center; /* Added to center all content by default */
         }
         
         /* Column Widths */
-        .col-no { width: 150px; }
-        .col-name { width: 220px; }
-        .col-project { width: 120px; }
-        .col-type { width: 100px; }
-        .col-platform { width: 80px; }
+        .col-index { width: 60px; text-align: center; }
+        .col-no { width: 150px; text-align: center; }
+        .col-name { width: 220px; text-align: justify; } /* Changed from left to justify */
+        .col-project { width: 120px; text-align: center; }
+        .col-type { width: 100px; text-align: center; }
+        .col-platform { width: 80px; text-align: center; }
+        .col-status { width: 80px; text-align: center; }
         .col-amount { width: 120px; text-align: right; }
-        .col-date { width: 110px; }
-        .col-company { width: 200px; }
-        .col-manager { width: 120px; } /* Corporate Principal */
-        .col-phone { width: 120px; }
-        .col-exec { width: 120px; } /* Executive Partner */
-        .col-filler { width: 120px; } /* Filler */
-        .col-dept { width: 120px; }
-        /* .col-payment { width: 200px; } Removed */
-        .col-orig-no { width: 150px; }
-        .col-orig-name { width: 200px; }
-        .col-remarks { width: 180px; }
-        .col-status { width: 80px; }
+        .col-date { width: 110px; text-align: center; }
+        .col-company { width: 200px; text-align: left; }
+        .col-manager { width: 120px; text-align: center; }
+        .col-phone { width: 120px; text-align: center; }
+        .col-exec { width: 120px; text-align: center; }
+        .col-filler { width: 120px; text-align: center; }
+        .col-dept { width: 120px; text-align: center; }
+        .col-orig-no { width: 150px; text-align: center; }
+        .col-orig-name { width: 200px; text-align: left; }
+        .col-remarks { width: 180px; text-align: left; }
         .col-actions { width: 220px; text-align: center; position: sticky; right: 0; background: white; box-shadow: -2px 0 5px rgba(0,0,0,0.05); z-index: 20; }
         th.col-actions { background: #F8FAFC; }
 
@@ -417,7 +418,7 @@
             color: #94A3B8;
             background: #F8FAFC;
         }
-        tr.invalid-row td.col-actions button.btn-edit {
+        tr.invalid-row td.col-actions button {
             display: none;
         }
 
@@ -842,6 +843,7 @@
                     <table style="width: 100%; border-collapse: collapse;">
                         <thead>
                             <tr>
+                                <th class="col-index">序号</th>
                                 <th class="col-no">编号</th>
                                 <th class="col-name">合同名称</th>
                                 <th class="col-project">项目号</th>
@@ -921,6 +923,16 @@
                     <option value="金乾">金乾</option>
                     <option value="俊成">俊成</option>
                 </select>
+                <input type="text" id="filterFiller" placeholder="填表人..." onkeyup="filterContracts()" style="width: 100px;">
+                <input type="text" id="filterExec" placeholder="执行合伙人..." onkeyup="filterContracts()" style="width: 120px;">
+                <select id="filterDept" onchange="filterContracts()" style="width: 140px;">
+                    <option value="">所有部门</option>
+                    <option value="业务1组(房地产)">业务1组(房地产)</option>
+                    <option value="业务2组(固定资产)">业务2组(固定资产)</option>
+                    <option value="业务3组(企业价值)">业务3组(企业价值)</option>
+                    <option value="矿业权组">矿业权组</option>
+                    <option value="其他">其他</option>
+                </select>
                 <button class="btn btn-secondary" onclick="resetFilters()">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M2.5 2v6h6M21.5 22v-6h-6"></path>
@@ -935,6 +947,7 @@
                     <table id="contractTable">
                         <thead>
                             <tr>
+                                <th class="col-index">序号</th>
                                 <th class="col-no">编号</th>
                                 <th class="col-name">合同名称</th>
                                 <th class="col-project">项目号</th>
@@ -999,12 +1012,17 @@
             tbody.innerHTML = '';
             
             if (contracts.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="18" style="text-align:center; color:#64748B; padding: 40px;">暂无数据</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="19" style="text-align:center; color:#64748B; padding: 40px;">暂无数据</td></tr>';
                 return;
             }
 
-            contracts.forEach(contract => {
+            // Calculate total count for reverse indexing
+            const totalCount = contracts.length;
+
+            contracts.forEach((contract, index) => {
                 const row = tbody.insertRow();
+                const reverseIndex = totalCount - index; // Calculate reverse index (e.g., 5, 4, 3, 2, 1)
+
                 const amount = contract.contract_amount ? 
                     `¥${parseFloat(contract.contract_amount).toLocaleString('zh-CN')}` : '-';
                 
@@ -1016,7 +1034,7 @@
                 
                 let statusBadge = '<span class="badge badge-gray">正常</span>';
                 let rowClass = '';
-                let editButtonStyle = 'padding: 4px 10px; font-size: 12px;';
+                let actionButtonsStyle = '';
                 
                 if (contract.status === 'active') {
                     statusBadge = '<span class="badge badge-green">正常</span>';
@@ -1024,13 +1042,14 @@
                 if (contract.status === 'invalid') {
                     statusBadge = '<span class="badge badge-red">已作废</span>';
                     rowClass = 'invalid-row';
-                    editButtonStyle += ' display: none;'; // Hide edit button via style as backup
+                    actionButtonsStyle = 'display: none;'; 
                 }
 
                 row.className = rowClass;
                 row.innerHTML = `
+                    <td style="text-align: center; color: #64748B;">${reverseIndex}</td>
                     <td style="font-family: var(--font-mono); font-weight: 600; color: #334155;">${contract.contract_no}</td>
-                    <td style="font-weight: 500;">${contract.contract_name}</td>
+                    <td style="font-weight: 500; text-align: justify;">${contract.contract_name}</td>
                     <td>${projectNo}</td>
                     <td><span class="badge ${badgeClass}">${contract.contract_type}</span></td>
                     <td>${contract.platform}</td>
@@ -1047,9 +1066,9 @@
                     <td>${contract.original_contract_name || '-'}</td>
                     <td>${contract.remarks || '-'}</td>
                     <td class="col-actions">
-                        <button class="btn btn-secondary btn-edit" style="${editButtonStyle}" onclick="editContract(${contract.id})">编辑</button>
-                        <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 12px; color: #F59E0B; border-color: #FCD34D;" onclick="voidContract(${contract.id})">作废</button>
-                        <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 12px; color: #EF4444; border-color: #FECACA;" onclick="deleteContract(${contract.id})">删除</button>
+                        <button class="btn btn-secondary btn-edit" style="padding: 4px 10px; font-size: 12px; ${actionButtonsStyle}" onclick="editContract(${contract.id})">编辑</button>
+                        <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 12px; color: #F59E0B; border-color: #FCD34D; ${actionButtonsStyle}" onclick="voidContract(${contract.id})">作废</button>
+                        <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 12px; color: #EF4444; border-color: #FECACA; ${actionButtonsStyle}" onclick="deleteContract(${contract.id})">删除</button>
                     </td>
                 `;
             });
@@ -1059,6 +1078,9 @@
             const keyword = document.getElementById('filterKeyword').value.toLowerCase();
             const type = document.getElementById('filterType').value;
             const platform = document.getElementById('filterPlatform').value;
+            const filler = document.getElementById('filterFiller').value.toLowerCase();
+            const exec = document.getElementById('filterExec').value.toLowerCase();
+            const dept = document.getElementById('filterDept').value;
 
             const filtered = allContracts.filter(c => {
                 const matchKeyword = !keyword || 
@@ -1068,8 +1090,11 @@
                 
                 const matchType = !type || c.contract_type === type;
                 const matchPlatform = !platform || c.platform === platform;
+                const matchFiller = !filler || (c.filler && c.filler.toLowerCase().includes(filler));
+                const matchExec = !exec || (c.executive_partner && c.executive_partner.toLowerCase().includes(exec));
+                const matchDept = !dept || c.department === dept;
 
-                return matchKeyword && matchType && matchPlatform;
+                return matchKeyword && matchType && matchPlatform && matchFiller && matchExec && matchDept;
             });
             renderTable(filtered);
         }
@@ -1078,6 +1103,9 @@
             document.getElementById('filterKeyword').value = '';
             document.getElementById('filterType').value = '';
             document.getElementById('filterPlatform').value = '';
+            document.getElementById('filterFiller').value = '';
+            document.getElementById('filterExec').value = '';
+            document.getElementById('filterDept').value = '';
             renderTable(allContracts);
         }
 

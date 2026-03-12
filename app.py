@@ -327,6 +327,8 @@ def update_contract(contract_id):
         print(f"[AUDIT] Force update duplicate contract: {data.get('contract_name')} by {session.get('realname', 'unknown')}")
 
     contract.contract_name = data['contract_name']
+    contract.contract_type = data['contract_type']
+    contract.platform = data['platform']
     contract.project_no = data.get('project_no')
     contract.contract_amount = data.get('contract_amount')
     contract.sign_date = datetime.strptime(data['sign_date'], '%Y-%m-%d') if data.get('sign_date') else None
