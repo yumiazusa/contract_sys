@@ -1147,6 +1147,8 @@
 
         // Modal Logic
         const modal = document.getElementById('contractModal');
+        const duplicateAlertModal = document.getElementById('duplicateAlertModal');
+        const duplicateDetailsModal = document.getElementById('duplicateDetailsModal');
         const modalTitleText = document.getElementById('modalTitleText');
 
         function openModal(mode, contract = null) {
@@ -1184,8 +1186,12 @@
         }
 
         window.onclick = function(event) {
-            if (event.target == modal) {
-                closeModal();
+            if (event.target === duplicateAlertModal) {
+                closeDuplicateAlert();
+            }
+
+            if (event.target === duplicateDetailsModal) {
+                closeDuplicateDetails();
             }
         }
 
@@ -1260,7 +1266,7 @@
                     pendingFormData = formData;
                     pendingEditId = editId;
                     pendingDuplicates = data.duplicates;
-                    document.getElementById('duplicateAlertModal').style.display = 'block';
+                    duplicateAlertModal.style.display = 'block';
                 } else {
                     submitContract(formData, editId);
                 }
@@ -1292,14 +1298,14 @@
         }
 
         function closeDuplicateAlert() {
-            document.getElementById('duplicateAlertModal').style.display = 'none';
+            duplicateAlertModal.style.display = 'none';
             pendingFormData = null;
             pendingEditId = null;
             pendingDuplicates = [];
         }
 
         function openDuplicateDetails() {
-            document.getElementById('duplicateAlertModal').style.display = 'none';
+            duplicateAlertModal.style.display = 'none';
             const tbody = document.getElementById('duplicateTableBody');
             tbody.innerHTML = '';
             
@@ -1335,11 +1341,11 @@
                 `;
             });
             
-            document.getElementById('duplicateDetailsModal').style.display = 'block';
+            duplicateDetailsModal.style.display = 'block';
         }
 
         function closeDuplicateDetails() {
-            document.getElementById('duplicateDetailsModal').style.display = 'none';
+            duplicateDetailsModal.style.display = 'none';
         }
 
         function cancelSubmissionFromDetails() {

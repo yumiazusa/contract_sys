@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for, session
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import or_
-from datetime import datetime
+from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill
@@ -10,6 +10,7 @@ import os
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-change-this-in-production'
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
 
 # 数据库配置
 # 临时切换到本地SQLite数据库以解决远程连接权限问题
@@ -91,6 +92,8 @@ def generate_contract_no(contract_type, platform):
 # 登录页面
 @app.route('/')
 def index():
+    if 'user' in session:
+        return redirect(url_for('dashboard'))
     return render_template('login.html')
 
 
@@ -115,6 +118,7 @@ def login():
             is_valid = True
             
     if is_valid:
+        session.permanent = True
         session['user'] = user.username
         session['realname'] = user.realname
         return redirect(url_for('dashboard'))
@@ -145,6 +149,7 @@ def init_admin():
 @app.route('/logout')
 def logout():
     session.pop('user', None)
+    session.pop('realname', None)
     return redirect(url_for('index'))
 
 

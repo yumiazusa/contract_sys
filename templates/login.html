@@ -229,7 +229,7 @@
             </div>
         </div>
 
-        <form action="/login" method="POST">
+        <form action="/login" method="POST" id="loginForm">
             <div class="form-group">
                 <label for="username">账号</label>
                 <div class="input-wrapper">
@@ -251,5 +251,19 @@
             Copyright © 2026 中和金乾资产评估有限公司 临时版本2.0 <br> All rights reserved.
         </div>
     </div>
+
+    <script>
+        const loginForm = document.getElementById('loginForm');
+        const usernameInput = document.getElementById('username');
+        const rememberedUsername = localStorage.getItem('rememberedUsername');
+
+        if (rememberedUsername) {
+            usernameInput.value = rememberedUsername;
+        }
+
+        loginForm.addEventListener('submit', function () {
+            localStorage.setItem('rememberedUsername', usernameInput.value.trim());
+        });
+    </script>
 </body>
 </html>
