@@ -439,6 +439,74 @@
             border-color: #CBD5E1;
         }
 
+        .table-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            padding: 16px 4px 0;
+            flex-wrap: wrap;
+        }
+
+        .table-summary {
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+
+        .pagination-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .page-size-select {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+
+        .page-size-select select {
+            min-width: 88px;
+            padding: 8px 10px;
+        }
+
+        .pagination {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .pagination button {
+            min-width: 36px;
+            padding: 8px 12px;
+            border: 1px solid #CBD5E1;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            color: var(--text-primary);
+        }
+
+        .pagination button.active {
+            background: var(--accent-color);
+            border-color: var(--accent-color);
+            color: white;
+        }
+
+        .pagination button:disabled {
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        .pagination-ellipsis {
+            color: var(--text-secondary);
+            font-size: 13px;
+            padding: 0 4px;
+        }
+
         .hidden { display: none; }
 
         /* Mobile Responsive */
@@ -974,36 +1042,160 @@
                     </table>
                 </div>
             </div>
+            <div class="table-footer">
+                <div id="tableSummary" class="table-summary">正在加载合同数据...</div>
+                <div class="pagination-controls">
+                    <label class="page-size-select">
+                        每页显示
+                        <select id="pageSize" onchange="changePageSize(this)">
+                            <option value="20">20 条</option>
+                            <option value="50" selected>50 条</option>
+                            <option value="100">100 条</option>
+                        </select>
+                    </label>
+                    <div id="pagination" class="pagination"></div>
+                </div>
+            </div>
         </div>
     </main>
 
     <script>
-        let allContracts = [];
+        const DEFAULT_PAGE_SIZE = 50;
+        const CONTRACT_YEAR = new Date().getFullYear();
+        const state = {
+            page: 1,
+            pageSize: DEFAULT_PAGE_SIZE,
+            pages: 0,
+            total: 0,
+            currentContracts: []
+        };
 
-        function updateStats(contracts) {
-            const total = contracts.length;
-            const today = new Date().toISOString().split('T')[0];
-            const thisMonth = new Date().toISOString().substring(0, 7);
-            const todayCount = contracts.filter(c => c.created_at && c.created_at.startsWith(today)).length;
-            const monthCount = contracts.filter(c => c.created_at && c.created_at.startsWith(thisMonth)).length;
-            
-            // Filter out invalid contracts for amount calculation
-            const validContracts = contracts.filter(c => c.status !== 'invalid');
-            const totalAmount = validContracts.reduce((sum, c) => sum + (parseFloat(c.contract_amount) || 0), 0);
+        let currentListController = null;
+        let filterDebounceTimer = null;
+        let pendingFormData = null;
+        let pendingEditId = null;
+        let pendingDuplicates = [];
 
-            document.getElementById('totalContracts').textContent = total;
-            document.getElementById('todayContracts').textContent = todayCount;
-            document.getElementById('monthContracts').textContent = monthCount;
-            document.getElementById('totalAmount').textContent = '¥' + Math.floor(totalAmount).toLocaleString();
+        const modal = document.getElementById('contractModal');
+        const duplicateAlertModal = document.getElementById('duplicateAlertModal');
+        const duplicateDetailsModal = document.getElementById('duplicateDetailsModal');
+        const modalTitleText = document.getElementById('modalTitleText');
+
+        function escapeHtml(value) {
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
         }
 
-        function loadContracts() {
-            fetch('/api/contracts')
-                .then(response => response.json())
+        function formatText(value, fallback = '-') {
+            return value ? escapeHtml(value) : fallback;
+        }
+
+        function formatProjectNo(value) {
+            return value ? escapeHtml(value).replace(/;/g, ';<br>') : '-';
+        }
+
+        function updateStats(summary) {
+            document.getElementById('totalContracts').textContent = summary.total_contracts || 0;
+            document.getElementById('todayContracts').textContent = summary.today_contracts || 0;
+            document.getElementById('monthContracts').textContent = summary.month_contracts || 0;
+            document.getElementById('totalAmount').textContent = '¥' + Math.floor(summary.total_amount || 0).toLocaleString();
+        }
+
+        function buildQueryString(params) {
+            const searchParams = new URLSearchParams();
+            Object.entries(params).forEach(([key, value]) => {
+                if (value !== undefined && value !== null && value !== '') {
+                    searchParams.append(key, value);
+                }
+            });
+            return searchParams.toString();
+        }
+
+        function getCurrentFilters() {
+            return {
+                keyword: document.getElementById('filterKeyword').value.trim(),
+                contract_type: document.getElementById('filterType').value,
+                platform: document.getElementById('filterPlatform').value,
+                filler: document.getElementById('filterFiller').value.trim(),
+                executive_partner: document.getElementById('filterExec').value.trim(),
+                department: document.getElementById('filterDept').value
+            };
+        }
+
+        function loadSummary() {
+            return fetch('/api/contracts/summary')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('加载统计信息失败');
+                    }
+                    return response.json();
+                })
+                .then(updateStats)
+                .catch(error => {
+                    console.error(error);
+                });
+        }
+
+        function updateTableSummary() {
+            const summary = document.getElementById('tableSummary');
+            if (state.total === 0) {
+                summary.textContent = '当前筛选条件下暂无合同数据';
+                return;
+            }
+
+            const start = (state.page - 1) * state.pageSize + 1;
+            const end = start + state.currentContracts.length - 1;
+            summary.textContent = `显示第 ${start}-${end} 条，共 ${state.total} 条记录`;
+        }
+
+        function loadContracts(page = state.page) {
+            if (currentListController) {
+                currentListController.abort();
+            }
+
+            const controller = new AbortController();
+            currentListController = controller;
+            state.page = page;
+            document.getElementById('tableSummary').textContent = '正在加载合同数据...';
+
+            const queryString = buildQueryString({
+                ...getCurrentFilters(),
+                page: state.page,
+                page_size: state.pageSize
+            });
+
+            return fetch(`/api/contracts?${queryString}`, { signal: controller.signal })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('加载合同列表失败');
+                    }
+                    return response.json();
+                })
                 .then(data => {
-                    allContracts = data;
-                    updateStats(data);
-                    renderTable(data);
+                    state.currentContracts = data.items || [];
+                    state.total = data.pagination?.total || 0;
+                    state.pages = data.pagination?.pages || 0;
+                    state.page = data.pagination?.page || 1;
+
+                    renderTable(state.currentContracts);
+                    renderPagination();
+                    updateTableSummary();
+                })
+                .catch(error => {
+                    if (error.name === 'AbortError') {
+                        return;
+                    }
+                    console.error(error);
+                    document.getElementById('tableSummary').textContent = '加载失败，请稍后重试';
+                })
+                .finally(() => {
+                    if (currentListController === controller) {
+                        currentListController = null;
+                    }
                 });
         }
 
@@ -1016,12 +1208,10 @@
                 return;
             }
 
-            // Calculate total count for reverse indexing
-            const totalCount = contracts.length;
-
+            const offset = (state.page - 1) * state.pageSize;
             contracts.forEach((contract, index) => {
                 const row = tbody.insertRow();
-                const reverseIndex = totalCount - index; // Calculate reverse index (e.g., 5, 4, 3, 2, 1)
+                const reverseIndex = state.total - offset - index;
 
                 const amount = contract.contract_amount ? 
                     `¥${parseFloat(contract.contract_amount).toLocaleString('zh-CN')}` : '-';
@@ -1030,7 +1220,7 @@
                 if (contract.contract_type === '框架合同') badgeClass = 'badge-purple';
                 if (contract.contract_type === '补充协议') badgeClass = 'badge-green';
 
-                const projectNo = contract.project_no ? contract.project_no.replace(/;/g, ';<br>') : '-';
+                const projectNo = formatProjectNo(contract.project_no);
                 
                 let statusBadge = '<span class="badge badge-gray">正常</span>';
                 let rowClass = '';
@@ -1048,23 +1238,23 @@
                 row.className = rowClass;
                 row.innerHTML = `
                     <td style="text-align: center; color: #64748B;">${reverseIndex}</td>
-                    <td style="font-family: var(--font-mono); font-weight: 600; color: #334155;">${contract.contract_no}</td>
-                    <td style="font-weight: 500; text-align: justify;">${contract.contract_name}</td>
+                    <td style="font-family: var(--font-mono); font-weight: 600; color: #334155;">${formatText(contract.contract_no)}</td>
+                    <td style="font-weight: 500; text-align: justify;">${formatText(contract.contract_name)}</td>
                     <td>${projectNo}</td>
-                    <td><span class="badge ${badgeClass}">${contract.contract_type}</span></td>
-                    <td>${contract.platform}</td>
+                    <td><span class="badge ${badgeClass}">${formatText(contract.contract_type)}</span></td>
+                    <td>${formatText(contract.platform)}</td>
                     <td>${statusBadge}</td>
                     <td style="font-family: var(--font-mono); font-weight: 600; text-align: right;">${amount}</td>
-                    <td>${contract.sign_date || '-'}</td>
-                    <td>${contract.company_name}</td>
-                    <td>${contract.corporate_principal}</td>
-                    <td>${contract.contact_phone}</td>
-                    <td>${contract.executive_partner || '-'}</td>
-                    <td>${contract.filler || '-'}</td>
-                    <td>${contract.department}</td>
-                    <td>${contract.original_contract_no || '-'}</td>
-                    <td>${contract.original_contract_name || '-'}</td>
-                    <td>${contract.remarks || '-'}</td>
+                    <td>${formatText(contract.sign_date)}</td>
+                    <td>${formatText(contract.company_name)}</td>
+                    <td>${formatText(contract.corporate_principal)}</td>
+                    <td>${formatText(contract.contact_phone)}</td>
+                    <td>${formatText(contract.executive_partner)}</td>
+                    <td>${formatText(contract.filler)}</td>
+                    <td>${formatText(contract.department)}</td>
+                    <td>${formatText(contract.original_contract_no)}</td>
+                    <td>${formatText(contract.original_contract_name)}</td>
+                    <td>${formatText(contract.remarks)}</td>
                     <td class="col-actions">
                         <button class="btn btn-secondary btn-edit" style="padding: 4px 10px; font-size: 12px; ${actionButtonsStyle}" onclick="editContract(${contract.id})">编辑</button>
                         <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 12px; color: #F59E0B; border-color: #FCD34D; ${actionButtonsStyle}" onclick="voidContract(${contract.id})">作废</button>
@@ -1075,28 +1265,8 @@
         }
 
         function filterContracts() {
-            const keyword = document.getElementById('filterKeyword').value.toLowerCase();
-            const type = document.getElementById('filterType').value;
-            const platform = document.getElementById('filterPlatform').value;
-            const filler = document.getElementById('filterFiller').value.toLowerCase();
-            const exec = document.getElementById('filterExec').value.toLowerCase();
-            const dept = document.getElementById('filterDept').value;
-
-            const filtered = allContracts.filter(c => {
-                const matchKeyword = !keyword || 
-                    (c.contract_no && c.contract_no.toLowerCase().includes(keyword)) ||
-                    (c.contract_name && c.contract_name.toLowerCase().includes(keyword)) ||
-                    (c.company_name && c.company_name.toLowerCase().includes(keyword));
-                
-                const matchType = !type || c.contract_type === type;
-                const matchPlatform = !platform || c.platform === platform;
-                const matchFiller = !filler || (c.filler && c.filler.toLowerCase().includes(filler));
-                const matchExec = !exec || (c.executive_partner && c.executive_partner.toLowerCase().includes(exec));
-                const matchDept = !dept || c.department === dept;
-
-                return matchKeyword && matchType && matchPlatform && matchFiller && matchExec && matchDept;
-            });
-            renderTable(filtered);
+            clearTimeout(filterDebounceTimer);
+            filterDebounceTimer = setTimeout(() => loadContracts(1), 250);
         }
 
         function resetFilters() {
@@ -1106,7 +1276,66 @@
             document.getElementById('filterFiller').value = '';
             document.getElementById('filterExec').value = '';
             document.getElementById('filterDept').value = '';
-            renderTable(allContracts);
+            loadContracts(1);
+        }
+
+        function buildPageButtons() {
+            if (state.pages <= 1) {
+                return '';
+            }
+
+            const buttons = [];
+            const start = Math.max(1, state.page - 2);
+            const end = Math.min(state.pages, start + 4);
+            const adjustedStart = Math.max(1, end - 4);
+
+            if (adjustedStart > 1) {
+                buttons.push(`<button type="button" onclick="goToPage(1)">1</button>`);
+                if (adjustedStart > 2) {
+                    buttons.push('<span class="pagination-ellipsis">...</span>');
+                }
+            }
+
+            for (let page = adjustedStart; page <= end; page += 1) {
+                buttons.push(
+                    `<button type="button" class="${page === state.page ? 'active' : ''}" onclick="goToPage(${page})">${page}</button>`
+                );
+            }
+
+            if (end < state.pages) {
+                if (end < state.pages - 1) {
+                    buttons.push('<span class="pagination-ellipsis">...</span>');
+                }
+                buttons.push(`<button type="button" onclick="goToPage(${state.pages})">${state.pages}</button>`);
+            }
+
+            return buttons.join('');
+        }
+
+        function renderPagination() {
+            const pagination = document.getElementById('pagination');
+            if (state.total === 0) {
+                pagination.innerHTML = '';
+                return;
+            }
+
+            pagination.innerHTML = `
+                <button type="button" onclick="goToPage(${state.page - 1})" ${state.page <= 1 ? 'disabled' : ''}>上一页</button>
+                ${buildPageButtons()}
+                <button type="button" onclick="goToPage(${state.page + 1})" ${state.page >= state.pages ? 'disabled' : ''}>下一页</button>
+            `;
+        }
+
+        function goToPage(page) {
+            if (page < 1 || page > state.pages || page === state.page) {
+                return;
+            }
+            loadContracts(page);
+        }
+
+        function changePageSize(select) {
+            state.pageSize = parseInt(select.value, 10) || DEFAULT_PAGE_SIZE;
+            loadContracts(1);
         }
 
         function handleTypeChange() {
@@ -1129,7 +1358,7 @@
             if (type && platform) {
                 const prefix = (type === '框架合同') ? 'KJ' : 'HT';
                 const platformCode = (platform === '金乾') ? 'JQ' : 'JC';
-                previewNumber.textContent = `${prefix}2026${platformCode}####`;
+                previewNumber.textContent = `${prefix}${CONTRACT_YEAR}${platformCode}####`;
                 preview.classList.add('show');
             } else {
                 preview.classList.remove('show');
@@ -1144,12 +1373,6 @@
             delete document.getElementById('contractForm').dataset.editId;
             updatePreview();
         }
-
-        // Modal Logic
-        const modal = document.getElementById('contractModal');
-        const duplicateAlertModal = document.getElementById('duplicateAlertModal');
-        const duplicateDetailsModal = document.getElementById('duplicateDetailsModal');
-        const modalTitleText = document.getElementById('modalTitleText');
 
         function openModal(mode, contract = null) {
             if (mode === 'create') {
@@ -1186,6 +1409,9 @@
         }
 
         window.onclick = function(event) {
+            if (event.target === modal) {
+                closeModal();
+            }
             if (event.target === duplicateAlertModal) {
                 closeDuplicateAlert();
             }
@@ -1196,17 +1422,30 @@
         }
 
         function editContract(id) {
-            const contract = allContracts.find(c => c.id === id);
-            if (contract) {
-                openModal('edit', contract);
-            }
+            fetch(`/api/contracts/${id}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('加载合同详情失败');
+                    }
+                    return response.json();
+                })
+                .then(contract => openModal('edit', contract))
+                .catch(error => {
+                    console.error(error);
+                    alert('加载合同详情失败，请稍后重试');
+                });
         }
 
         function voidContract(id) {
             if (confirm('确认作废该合同？此操作不可逆！')) {
                 fetch(`/api/contracts/${id}/void`, { method: 'POST' })
                     .then(r => r.json())
-                    .then(d => { if(d.success) loadContracts(); });
+                    .then(d => {
+                        if (d.success) {
+                            loadSummary();
+                            loadContracts(state.page);
+                        }
+                    });
             }
         }
 
@@ -1214,13 +1453,17 @@
             if (confirm('确认删除?')) {
                 fetch(`/api/contracts/${id}`, { method: 'DELETE' })
                     .then(r => r.json())
-                    .then(d => { if(d.success) loadContracts(); });
+                    .then(d => {
+                        if (d.success) {
+                            const targetPage = state.currentContracts.length === 1 && state.page > 1 ? state.page - 1 : state.page;
+                            loadSummary();
+                            loadContracts(targetPage);
+                        } else {
+                            alert(d.message || '删除失败');
+                        }
+                    });
             }
         }
-
-        let pendingFormData = null;
-        let pendingEditId = null;
-        let pendingDuplicates = [];
 
         document.getElementById('contractForm').addEventListener('submit', function(e) {
             e.preventDefault();
@@ -1290,7 +1533,15 @@
             .then(data => {
                 if (data.success) {
                     alert(editId ? '更新成功' : '创建成功');
-                    location.reload();
+                    closeModal();
+                    clearForm();
+                    closeDuplicateAlert();
+                    closeDuplicateDetails();
+                    pendingFormData = null;
+                    pendingEditId = null;
+                    pendingDuplicates = [];
+                    loadSummary();
+                    loadContracts(editId ? state.page : 1);
                 } else {
                     alert(data.message || '操作失败');
                 }
@@ -1309,7 +1560,7 @@
             const tbody = document.getElementById('duplicateTableBody');
             tbody.innerHTML = '';
             
-            pendingDuplicates.forEach(contract => {
+            pendingDuplicates.forEach((contract, index) => {
                 const row = tbody.insertRow();
                 const amount = contract.contract_amount ? 
                     `¥${parseFloat(contract.contract_amount).toLocaleString('zh-CN')}` : '-';
@@ -1318,26 +1569,30 @@
                 if (contract.contract_type === '框架合同') badgeClass = 'badge-purple';
                 if (contract.contract_type === '补充协议') badgeClass = 'badge-green';
 
-                const projectNo = contract.project_no ? contract.project_no.replace(/;/g, ';<br>') : '-';
-                
-                // Use same structure as main table, minus actions
+                const projectNo = formatProjectNo(contract.project_no);
+                const statusBadge = contract.status === 'invalid'
+                    ? '<span class="badge badge-red">已作废</span>'
+                    : '<span class="badge badge-green">正常</span>';
+
                 row.innerHTML = `
-                    <td style="font-family: var(--font-mono); font-weight: 600; color: #334155;">${contract.contract_no}</td>
-                    <td style="font-weight: 500;">${contract.contract_name}</td>
+                    <td>${index + 1}</td>
+                    <td style="font-family: var(--font-mono); font-weight: 600; color: #334155;">${formatText(contract.contract_no)}</td>
+                    <td style="font-weight: 500;">${formatText(contract.contract_name)}</td>
                     <td>${projectNo}</td>
-                    <td><span class="badge ${badgeClass}">${contract.contract_type}</span></td>
-                    <td>${contract.platform}</td>
+                    <td><span class="badge ${badgeClass}">${formatText(contract.contract_type)}</span></td>
+                    <td>${formatText(contract.platform)}</td>
+                    <td>${statusBadge}</td>
                     <td style="font-family: var(--font-mono); font-weight: 600; text-align: right;">${amount}</td>
-                    <td>${contract.sign_date || '-'}</td>
-                    <td>${contract.company_name}</td>
-                    <td>${contract.corporate_principal}</td>
-                    <td>${contract.contact_phone}</td>
-                    <td>${contract.executive_partner || '-'}</td>
-                    <td>${contract.filler || '-'}</td>
-                    <td>${contract.department}</td>
-                    <td>${contract.original_contract_no || '-'}</td>
-                    <td>${contract.original_contract_name || '-'}</td>
-                    <td>${contract.remarks || '-'}</td>
+                    <td>${formatText(contract.sign_date)}</td>
+                    <td>${formatText(contract.company_name)}</td>
+                    <td>${formatText(contract.corporate_principal)}</td>
+                    <td>${formatText(contract.contact_phone)}</td>
+                    <td>${formatText(contract.executive_partner)}</td>
+                    <td>${formatText(contract.filler)}</td>
+                    <td>${formatText(contract.department)}</td>
+                    <td>${formatText(contract.original_contract_no)}</td>
+                    <td>${formatText(contract.original_contract_name)}</td>
+                    <td>${formatText(contract.remarks)}</td>
                 `;
             });
             
@@ -1356,17 +1611,22 @@
         }
 
         function confirmForceSubmit() {
+            const formData = pendingFormData;
+            const editId = pendingEditId;
             closeDuplicateDetails();
-            if (pendingFormData) {
-                submitContract(pendingFormData, pendingEditId, true);
+            if (formData) {
+                submitContract(formData, editId, true);
             }
         }
 
         function exportExcel() {
-            window.location.href = '/api/export/excel';
+            const queryString = buildQueryString(getCurrentFilters());
+            const exportUrl = queryString ? `/api/export/excel?${queryString}` : '/api/export/excel';
+            window.location.href = exportUrl;
         }
 
-        loadContracts();
+        loadSummary();
+        loadContracts(1);
     </script>
 </body>
-</htm
+</html>

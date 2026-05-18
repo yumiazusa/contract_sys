@@ -1,23 +1,75 @@
-from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for, session
+from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for, session, after_this_request
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import or_
-from datetime import datetime, timedelta
+from sqlalchemy import or_, func
+from sqlalchemy.exc import IntegrityError
+from datetime import datetime, timedelta, date
 from werkzeug.security import generate_password_hash, check_password_hash
 import openpyxl
+from openpyxl.cell import WriteOnlyCell
 from openpyxl.styles import Font, Alignment, PatternFill
-from io import BytesIO
 import os
+import tempfile
+
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    def load_dotenv():
+        return False
+
+load_dotenv()
+
+DEFAULT_DB_URI = 'mysql+pymysql://ProjectDB:4100282Ly%40@47.108.254.13/projectdb'
+DEFAULT_PAGE_SIZE = 50
+MAX_PAGE_SIZE = 200
+EXPORT_BATCH_SIZE = 200
+
+
+def get_int_env(name, default, minimum=None, maximum=None):
+    raw_value = os.getenv(name)
+    try:
+        value = int(raw_value) if raw_value is not None else default
+    except (TypeError, ValueError):
+        value = default
+
+    if minimum is not None:
+        value = max(minimum, value)
+    if maximum is not None:
+        value = min(maximum, value)
+    return value
+
+
+def get_bool_env(name, default=False):
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        return default
+    return raw_value.strip().lower() in {'1', 'true', 'yes', 'on'}
+
+
+def normalize_text(value):
+    return (value or '').strip()
+
+
+database_uri = os.getenv('DATABASE_URL', DEFAULT_DB_URI)
+engine_options = {'pool_pre_ping': True}
+if not database_uri.startswith('sqlite'):
+    engine_options.update({
+        'pool_recycle': get_int_env('DB_POOL_RECYCLE', 1800, minimum=60),
+        'pool_size': get_int_env('DB_POOL_SIZE', 3, minimum=1, maximum=10),
+        'max_overflow': get_int_env('DB_MAX_OVERFLOW', 2, minimum=0, maximum=10),
+        'pool_timeout': get_int_env('DB_POOL_TIMEOUT', 30, minimum=5, maximum=120)
+    })
 
 app = Flask(__name__)
-app.secret_key = 'your-secret-key-change-this-in-production'
+app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key-change-this-in-production')
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
 
 # 数据库配置
 # 临时切换到本地SQLite数据库以解决远程连接权限问题
 #app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///contract.db'
 #原MySQL配置（如需恢复远程连接，请取消注释下方代码并注释掉上方SQLite配置）
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://ProjectDB:4100282Ly%40@47.108.254.13/projectdb'
+app.config['SQLALCHEMY_DATABASE_URI'] = database_uri
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = engine_options
 db = SQLAlchemy(app)
 
 
@@ -57,14 +109,121 @@ class Contract(db.Model):
     status = db.Column(db.String(20), default='active')  # active, invalid
 
 
+def serialize_contract(contract):
+    return {
+        'id': contract.id,
+        'contract_no': contract.contract_no,
+        'contract_name': contract.contract_name,
+        'project_no': contract.project_no,
+        'contract_type': contract.contract_type,
+        'platform': contract.platform,
+        'contract_amount': str(contract.contract_amount) if contract.contract_amount else '',
+        'sign_date': contract.sign_date.strftime('%Y-%m-%d') if contract.sign_date else '',
+        'company_name': contract.company_name,
+        'contact_phone': contract.contact_phone,
+        'corporate_principal': contract.corporate_principal,
+        'department': contract.department,
+        'payment_terms': contract.payment_terms,
+        'original_contract_no': contract.original_contract_no,
+        'original_contract_name': contract.original_contract_name,
+        'remarks': contract.remarks,
+        'created_at': contract.created_at.strftime('%Y-%m-%d %H:%M:%S') if contract.created_at else '',
+        'updated_at': contract.updated_at.strftime('%Y-%m-%d %H:%M:%S') if contract.updated_at else '',
+        'executive_partner': contract.executive_partner,
+        'filler': contract.filler,
+        'status': contract.status
+    }
+
+
+def get_payload_value(data, key):
+    value = data.get(key)
+    return value if value != '' else None
+
+
+def apply_contract_filters(query, params):
+    keyword = normalize_text(params.get('keyword'))
+    contract_type = normalize_text(params.get('contract_type'))
+    platform = normalize_text(params.get('platform'))
+    filler = normalize_text(params.get('filler'))
+    exec_partner = normalize_text(params.get('executive_partner'))
+    department = normalize_text(params.get('department'))
+    status = normalize_text(params.get('status'))
+
+    if keyword:
+        like_keyword = f'%{keyword}%'
+        query = query.filter(or_(
+            Contract.contract_no.like(like_keyword),
+            Contract.contract_name.like(like_keyword),
+            Contract.company_name.like(like_keyword),
+            Contract.project_no.like(like_keyword)
+        ))
+    if contract_type:
+        query = query.filter(Contract.contract_type == contract_type)
+    if platform:
+        query = query.filter(Contract.platform == platform)
+    if filler:
+        query = query.filter(Contract.filler.like(f'%{filler}%'))
+    if exec_partner:
+        query = query.filter(Contract.executive_partner.like(f'%{exec_partner}%'))
+    if department:
+        query = query.filter(Contract.department == department)
+    if status:
+        query = query.filter(Contract.status == status)
+
+    return query
+
+
+def get_pagination_params():
+    page = get_int_env('DEFAULT_PAGE', 1, minimum=1)
+    page_size = DEFAULT_PAGE_SIZE
+
+    request_page = request.args.get('page')
+    request_page_size = request.args.get('page_size')
+
+    if request_page is not None:
+        try:
+            page = max(1, int(request_page))
+        except (TypeError, ValueError):
+            page = 1
+
+    if request_page_size is not None:
+        try:
+            page_size = min(MAX_PAGE_SIZE, max(1, int(request_page_size)))
+        except (TypeError, ValueError):
+            page_size = DEFAULT_PAGE_SIZE
+
+    return page, page_size
+
+
+def get_contract_summary():
+    today = date.today()
+    today_start = datetime.combine(today, datetime.min.time())
+    month_start = datetime(today.year, today.month, 1)
+
+    total_contracts = db.session.query(func.count(Contract.id)).scalar() or 0
+    today_contracts = db.session.query(func.count(Contract.id)).filter(Contract.created_at >= today_start).scalar() or 0
+    month_contracts = db.session.query(func.count(Contract.id)).filter(Contract.created_at >= month_start).scalar() or 0
+    total_amount = db.session.query(func.coalesce(func.sum(Contract.contract_amount), 0)).filter(
+        Contract.status != 'invalid'
+    ).scalar() or 0
+
+    return {
+        'total_contracts': int(total_contracts),
+        'today_contracts': int(today_contracts),
+        'month_contracts': int(month_contracts),
+        'total_amount': float(total_amount)
+    }
+
+
 # 生成合同编号
 def generate_contract_no(contract_type, platform):
     prefix = 'KJ' if contract_type == '框架合同' else 'HT'
     platform_code = 'JQ' if platform == '金乾' else 'JC'
+    current_year = datetime.now().year
 
     # 查询当前平台和类型的最大流水号
     # 使用 like 查询确保匹配正确的前缀（年份可能会变）
-    year_prefix = f"{prefix}2026{platform_code}"
+    year_prefix = f"{prefix}{current_year}{platform_code}"
     last_contract = Contract.query.filter(
         Contract.contract_no.like(f"{year_prefix}%")
     ).order_by(Contract.contract_no.desc()).first()
@@ -164,51 +323,45 @@ def dashboard():
 # 获取合同列表
 @app.route('/api/contracts', methods=['GET'])
 def get_contracts():
-    query = Contract.query
+    page, page_size = get_pagination_params()
+    query = apply_contract_filters(Contract.query, request.args)
+    pagination = query.order_by(Contract.created_at.desc(), Contract.id.desc()).paginate(
+        page=page,
+        per_page=page_size,
+        error_out=False
+    )
 
-    # 筛选
-    exec_partner = request.args.get('executive_partner')
-    filler = request.args.get('filler')
-    
-    if exec_partner:
-        query = query.filter(Contract.executive_partner == exec_partner)
-    if filler:
-        query = query.filter(Contract.filler == filler)
+    return jsonify({
+        'items': [serialize_contract(contract) for contract in pagination.items],
+        'pagination': {
+            'page': pagination.page,
+            'page_size': page_size,
+            'pages': pagination.pages,
+            'total': pagination.total
+        }
+    })
 
-    contracts = query.order_by(Contract.created_at.desc()).all()
-    return jsonify([{
-        'id': c.id,
-        'contract_no': c.contract_no,
-        'contract_name': c.contract_name,
-        'project_no': c.project_no,
-        'contract_type': c.contract_type,
-        'platform': c.platform,
-        'contract_amount': str(c.contract_amount) if c.contract_amount else '',
-        'sign_date': c.sign_date.strftime('%Y-%m-%d') if c.sign_date else '',
-        'company_name': c.company_name,
-        'contact_phone': c.contact_phone,
-        'corporate_principal': c.corporate_principal,
-        'department': c.department,
-        'payment_terms': c.payment_terms,
-        'original_contract_no': c.original_contract_no,
-        'original_contract_name': c.original_contract_name,
-        'remarks': c.remarks,
-        'created_at': c.created_at.strftime('%Y-%m-%d %H:%M:%S') if c.created_at else '',
-        'executive_partner': c.executive_partner,
-        'filler': c.filler,
-        'status': c.status
-    } for c in contracts])
+
+@app.route('/api/contracts/summary', methods=['GET'])
+def get_contracts_summary():
+    return jsonify(get_contract_summary())
+
+
+@app.route('/api/contracts/<int:contract_id>', methods=['GET'])
+def get_contract(contract_id):
+    contract = Contract.query.get_or_404(contract_id)
+    return jsonify(serialize_contract(contract))
 
 
 # 获取筛选选项
 @app.route('/api/contracts/filter_options', methods=['GET'])
 def get_filter_options():
-    partners = db.session.query(Contract.executive_partner).distinct().filter(Contract.executive_partner != None).all()
-    fillers = db.session.query(Contract.filler).distinct().filter(Contract.filler != None).all()
+    partners = db.session.query(Contract.executive_partner).distinct().filter(Contract.executive_partner.isnot(None)).all()
+    fillers = db.session.query(Contract.filler).distinct().filter(Contract.filler.isnot(None)).all()
     
     return jsonify({
-        'executive_partners': [p[0] for p in partners if p[0]],
-        'fillers': [f[0] for f in fillers if f[0]]
+        'executive_partners': sorted([p[0] for p in partners if p[0]]),
+        'fillers': sorted([f[0] for f in fillers if f[0]])
     })
 
 
@@ -247,31 +400,10 @@ def check_duplicate():
     if edit_id:
         query = query.filter(Contract.id != edit_id)
 
-    duplicates = query.all()
+    duplicates = query.order_by(Contract.created_at.desc(), Contract.id.desc()).all()
 
     return jsonify({
-        'duplicates': [{
-            'id': c.id,
-            'contract_no': c.contract_no,
-            'contract_name': c.contract_name,
-            'project_no': c.project_no,
-            'contract_type': c.contract_type,
-            'platform': c.platform,
-            'contract_amount': str(c.contract_amount) if c.contract_amount else '',
-            'sign_date': c.sign_date.strftime('%Y-%m-%d') if c.sign_date else '',
-            'company_name': c.company_name,
-            'contact_phone': c.contact_phone,
-            'corporate_principal': c.corporate_principal,
-            'department': c.department,
-            'payment_terms': c.payment_terms,
-            'original_contract_no': c.original_contract_no,
-            'original_contract_name': c.original_contract_name,
-            'remarks': c.remarks,
-            'created_at': c.created_at.strftime('%Y-%m-%d %H:%M:%S') if c.created_at else '',
-            'executive_partner': c.executive_partner,
-            'filler': c.filler,
-            'status': c.status
-        } for c in duplicates]
+        'duplicates': [serialize_contract(contract) for contract in duplicates]
     })
 
 
@@ -284,39 +416,37 @@ def create_contract():
     if data.get('force_submit'):
         print(f"[AUDIT] Force submit duplicate contract: {data.get('contract_name')} by {session.get('realname', 'unknown')}")
 
-    # 生成合同编号
-    contract_no = generate_contract_no(data['contract_type'], data['platform'])
+    for _ in range(5):
+        contract_no = generate_contract_no(data['contract_type'], data['platform'])
+        contract = Contract(
+            contract_no=contract_no,
+            contract_name=data['contract_name'],
+            project_no=get_payload_value(data, 'project_no'),
+            contract_type=data['contract_type'],
+            platform=data['platform'],
+            contract_amount=get_payload_value(data, 'contract_amount'),
+            sign_date=datetime.strptime(data['sign_date'], '%Y-%m-%d') if get_payload_value(data, 'sign_date') else None,
+            company_name=data['company_name'],
+            contact_phone=data['contact_phone'],
+            corporate_principal=data['corporate_principal'],
+            department=data['department'],
+            payment_terms=get_payload_value(data, 'payment_terms'),
+            original_contract_no=get_payload_value(data, 'original_contract_no'),
+            original_contract_name=get_payload_value(data, 'original_contract_name'),
+            remarks=get_payload_value(data, 'remarks'),
+            executive_partner=get_payload_value(data, 'executive_partner'),
+            filler=get_payload_value(data, 'filler'),
+            status='active'
+        )
 
-    # 处理空字符串为 None，防止数据库报错或逻辑错误
-    def get_val(key):
-        val = data.get(key)
-        return val if val != '' else None
+        db.session.add(contract)
+        try:
+            db.session.commit()
+            return jsonify({'success': True, 'contract_no': contract_no, 'id': contract.id})
+        except IntegrityError:
+            db.session.rollback()
 
-    contract = Contract(
-        contract_no=contract_no,
-        contract_name=data['contract_name'],
-        project_no=get_val('project_no'),
-        contract_type=data['contract_type'],
-        platform=data['platform'],
-        contract_amount=get_val('contract_amount'),
-        sign_date=datetime.strptime(data['sign_date'], '%Y-%m-%d') if get_val('sign_date') else None,
-        company_name=data['company_name'],
-        contact_phone=data['contact_phone'],
-        corporate_principal=data['corporate_principal'],
-        department=data['department'],
-        payment_terms=get_val('payment_terms'),
-        original_contract_no=get_val('original_contract_no'),
-        original_contract_name=get_val('original_contract_name'),
-        remarks=get_val('remarks'),
-        executive_partner=get_val('executive_partner'),
-        filler=get_val('filler'),
-        status='active'
-    )
-
-    db.session.add(contract)
-    db.session.commit()
-
-    return jsonify({'success': True, 'contract_no': contract_no, 'id': contract.id})
+    return jsonify({'success': False, 'message': '合同编号生成冲突，请稍后重试'}), 409
 
 
 # 更新合同
@@ -334,19 +464,19 @@ def update_contract(contract_id):
     contract.contract_name = data['contract_name']
     contract.contract_type = data['contract_type']
     contract.platform = data['platform']
-    contract.project_no = data.get('project_no')
-    contract.contract_amount = data.get('contract_amount')
-    contract.sign_date = datetime.strptime(data['sign_date'], '%Y-%m-%d') if data.get('sign_date') else None
+    contract.project_no = get_payload_value(data, 'project_no')
+    contract.contract_amount = get_payload_value(data, 'contract_amount')
+    contract.sign_date = datetime.strptime(data['sign_date'], '%Y-%m-%d') if get_payload_value(data, 'sign_date') else None
     contract.company_name = data['company_name']
     contract.contact_phone = data['contact_phone']
     contract.corporate_principal = data['corporate_principal']
     contract.department = data['department']
-    contract.payment_terms = data.get('payment_terms')
-    contract.original_contract_no = data.get('original_contract_no')
-    contract.original_contract_name = data.get('original_contract_name')
-    contract.remarks = data.get('remarks')
-    contract.executive_partner = data.get('executive_partner')
-    contract.filler = data.get('filler')
+    contract.payment_terms = get_payload_value(data, 'payment_terms')
+    contract.original_contract_no = get_payload_value(data, 'original_contract_no')
+    contract.original_contract_name = get_payload_value(data, 'original_contract_name')
+    contract.remarks = get_payload_value(data, 'remarks')
+    contract.executive_partner = get_payload_value(data, 'executive_partner')
+    contract.filler = get_payload_value(data, 'filler')
 
     db.session.commit()
 
@@ -408,16 +538,17 @@ def delete_contract(contract_id):
 # 导出Excel
 @app.route('/api/export/excel', methods=['GET'])
 def export_excel():
-    contracts = Contract.query.order_by(Contract.created_at.desc()).all()
+    query = apply_contract_filters(Contract.query, request.args).order_by(Contract.created_at.desc(), Contract.id.desc())
+    total_count = query.count()
 
-    # 创建工作簿
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "合同列表"
+    # 使用 write_only 模式按批次写入，避免全量工作簿常驻内存
+    wb = openpyxl.Workbook(write_only=True)
+    ws = wb.create_sheet(title='合同列表')
 
     # 设置标题样式
     header_fill = PatternFill(start_color="E74C3C", end_color="E74C3C", fill_type="solid")
     header_font = Font(bold=True, color="FFFFFF", size=12)
+    header_alignment = Alignment(horizontal='center', vertical='center')
 
     # 表头
     headers = [
@@ -427,58 +558,83 @@ def export_excel():
         '原合同编号', '原合同名称', '状态', '备注', '创建时间', '更新时间'
     ]
 
-    for col, header in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col)
+    header_row = []
+    for header in headers:
+        cell = WriteOnlyCell(ws, value=header)
         cell.value = header
         cell.fill = header_fill
         cell.font = header_font
-        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.alignment = header_alignment
+        header_row.append(cell)
+    ws.append(header_row)
 
     # 数据行
-    total_count = len(contracts)
-    for i, contract in enumerate(contracts):
-        row = i + 2
-        ws.cell(row=row, column=1).value = total_count - i  # 自然序号倒序
-        ws.cell(row=row, column=2).value = contract.contract_no
-        ws.cell(row=row, column=3).value = contract.contract_name
-        ws.cell(row=row, column=4).value = contract.project_no
-        ws.cell(row=row, column=5).value = contract.contract_type
-        ws.cell(row=row, column=6).value = contract.platform
-        ws.cell(row=row, column=7).value = float(contract.contract_amount) if contract.contract_amount else 0
-        ws.cell(row=row, column=8).value = contract.sign_date.strftime('%Y-%m-%d') if contract.sign_date else ''
-        ws.cell(row=row, column=9).value = contract.company_name
-        ws.cell(row=row, column=10).value = contract.corporate_principal
-        ws.cell(row=row, column=11).value = contract.contact_phone
-        ws.cell(row=row, column=12).value = contract.executive_partner
-        ws.cell(row=row, column=13).value = contract.filler
-        ws.cell(row=row, column=14).value = contract.department
-        ws.cell(row=row, column=15).value = contract.payment_terms
-        ws.cell(row=row, column=16).value = contract.original_contract_no
-        ws.cell(row=row, column=17).value = contract.original_contract_name
-        ws.cell(row=row, column=18).value = '已作废' if contract.status == 'invalid' else '正常'
-        ws.cell(row=row, column=19).value = contract.remarks
-        ws.cell(row=row, column=20).value = contract.created_at.strftime('%Y-%m-%d %H:%M:%S') if contract.created_at else ''
-        ws.cell(row=row, column=21).value = contract.updated_at.strftime('%Y-%m-%d %H:%M:%S') if contract.updated_at else ''
+    for index, contract in enumerate(query.yield_per(EXPORT_BATCH_SIZE), start=1):
+        ws.append([
+            total_count - index + 1,
+            contract.contract_no,
+            contract.contract_name,
+            contract.project_no,
+            contract.contract_type,
+            contract.platform,
+            float(contract.contract_amount) if contract.contract_amount else 0,
+            contract.sign_date.strftime('%Y-%m-%d') if contract.sign_date else '',
+            contract.company_name,
+            contract.corporate_principal,
+            contract.contact_phone,
+            contract.executive_partner,
+            contract.filler,
+            contract.department,
+            contract.payment_terms,
+            contract.original_contract_no,
+            contract.original_contract_name,
+            '已作废' if contract.status == 'invalid' else '正常',
+            contract.remarks,
+            contract.created_at.strftime('%Y-%m-%d %H:%M:%S') if contract.created_at else '',
+            contract.updated_at.strftime('%Y-%m-%d %H:%M:%S') if contract.updated_at else ''
+        ])
 
-    # 调整列宽
-    column_widths = [8, 15, 30, 20, 12, 12, 15, 12, 25, 12, 15, 12, 12, 18, 30, 15, 25, 10, 30, 20, 20]
-    for col, width in enumerate(column_widths, 1):
-        ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = width
+    tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
+    temp_path = tmp_file.name
+    tmp_file.close()
 
-    # 保存到内存
-    output = BytesIO()
-    wb.save(output)
-    output.seek(0)
+    try:
+        wb.save(temp_path)
+    except Exception:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        raise
+    finally:
+        wb.close()
+
+    @after_this_request
+    def cleanup_export_file(response):
+        try:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+        except OSError:
+            pass
+        return response
 
     return send_file(
-        output,
+        temp_path,
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         as_attachment=True,
-        download_name=f'合同列表_{datetime.now().strftime("%Y%m%d")}.xlsx'
+        download_name=f'合同列表_{datetime.now().strftime("%Y%m%d")}.xlsx',
+        max_age=0
     )
+
+
+@app.teardown_appcontext
+def shutdown_session(exception=None):
+    db.session.remove()
 
 
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    app.run(debug=True, host='0.0.0.0', port=5600)
+    app.run(
+        debug=get_bool_env('FLASK_DEBUG', False),
+        host=os.getenv('HOST', '0.0.0.0'),
+        port=get_int_env('PORT', 5600, minimum=1, maximum=65535)
+    )
