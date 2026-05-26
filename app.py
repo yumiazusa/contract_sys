@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for, session, after_this_request
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import or_, func
+from sqlalchemy import or_, func, select
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta, date
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -109,29 +109,65 @@ class Contract(db.Model):
     status = db.Column(db.String(20), default='active')  # active, invalid
 
 
+CONTRACT_FIELDS = [
+    'id',
+    'contract_no',
+    'contract_name',
+    'project_no',
+    'contract_type',
+    'platform',
+    'contract_amount',
+    'sign_date',
+    'company_name',
+    'contact_phone',
+    'corporate_principal',
+    'department',
+    'payment_terms',
+    'original_contract_no',
+    'original_contract_name',
+    'remarks',
+    'created_at',
+    'updated_at',
+    'executive_partner',
+    'filler',
+    'status'
+]
+CONTRACT_COLUMN_MAP = {field: getattr(Contract, field) for field in CONTRACT_FIELDS}
+CONTRACT_COLUMNS = [CONTRACT_COLUMN_MAP[field] for field in CONTRACT_FIELDS]
+
+
+def row_to_contract_data(row):
+    if row is None:
+        return None
+    if hasattr(row, '_mapping'):
+        return dict(row._mapping)
+    return {field: getattr(row, field) for field in CONTRACT_FIELDS}
+
+
 def serialize_contract(contract):
+    contract = row_to_contract_data(contract)
     return {
-        'id': contract.id,
-        'contract_no': contract.contract_no,
-        'contract_name': contract.contract_name,
-        'project_no': contract.project_no,
-        'contract_type': contract.contract_type,
-        'platform': contract.platform,
-        'contract_amount': str(contract.contract_amount) if contract.contract_amount else '',
-        'sign_date': contract.sign_date.strftime('%Y-%m-%d') if contract.sign_date else '',
-        'company_name': contract.company_name,
-        'contact_phone': contract.contact_phone,
-        'corporate_principal': contract.corporate_principal,
-        'department': contract.department,
-        'payment_terms': contract.payment_terms,
-        'original_contract_no': contract.original_contract_no,
-        'original_contract_name': contract.original_contract_name,
-        'remarks': contract.remarks,
-        'created_at': contract.created_at.strftime('%Y-%m-%d %H:%M:%S') if contract.created_at else '',
-        'updated_at': contract.updated_at.strftime('%Y-%m-%d %H:%M:%S') if contract.updated_at else '',
-        'executive_partner': contract.executive_partner,
-        'filler': contract.filler,
-        'status': contract.status
+        'id': contract['id'],
+        'contract_no': contract['contract_no'],
+        'contract_name': contract['contract_name'],
+        'project_no': contract['project_no'],
+        'contract_type': contract['contract_type'],
+        'platform': contract['platform'],
+        'contract_amount': str(contract['contract_amount']) if contract['contract_amount'] else '',
+        'sign_date': contract['sign_date'].strftime('%Y-%m-%d') if contract['sign_date'] else '',
+        'company_name': contract['company_name'],
+        'contact_phone': contract['contact_phone'],
+        'corporate_principal': contract['corporate_principal'],
+        'department': contract['department'],
+        'payment_terms': contract['payment_terms'],
+        'original_contract_no': contract['original_contract_no'],
+        'original_contract_name': contract['original_contract_name'],
+        'remarks': contract['remarks'],
+        'created_at': contract['created_at'].strftime('%Y-%m-%d %H:%M:%S') if contract['created_at'] else '',
+        'updated_at': contract['updated_at'].strftime('%Y-%m-%d %H:%M:%S') if contract['updated_at'] else '',
+        'executive_partner': contract['executive_partner'],
+        'filler': contract['filler'],
+        'status': contract['status']
     }
 
 
@@ -324,7 +360,7 @@ def dashboard():
 @app.route('/api/contracts', methods=['GET'])
 def get_contracts():
     page, page_size = get_pagination_params()
-    query = apply_contract_filters(Contract.query, request.args)
+    query = apply_contract_filters(Contract.query.with_entities(*CONTRACT_COLUMNS), request.args)
     pagination = query.order_by(Contract.created_at.desc(), Contract.id.desc()).paginate(
         page=page,
         per_page=page_size,
@@ -349,7 +385,7 @@ def get_contracts_summary():
 
 @app.route('/api/contracts/<int:contract_id>', methods=['GET'])
 def get_contract(contract_id):
-    contract = Contract.query.get_or_404(contract_id)
+    contract = Contract.query.with_entities(*CONTRACT_COLUMNS).filter(Contract.id == contract_id).first_or_404()
     return jsonify(serialize_contract(contract))
 
 
@@ -400,7 +436,7 @@ def check_duplicate():
     if edit_id:
         query = query.filter(Contract.id != edit_id)
 
-    duplicates = query.order_by(Contract.created_at.desc(), Contract.id.desc()).all()
+    duplicates = query.with_entities(*CONTRACT_COLUMNS).order_by(Contract.created_at.desc(), Contract.id.desc()).all()
 
     return jsonify({
         'duplicates': [serialize_contract(contract) for contract in duplicates]
@@ -538,7 +574,32 @@ def delete_contract(contract_id):
 # 导出Excel
 @app.route('/api/export/excel', methods=['GET'])
 def export_excel():
-    query = apply_contract_filters(Contract.query, request.args).order_by(Contract.created_at.desc(), Contract.id.desc())
+    export_columns = [
+        Contract.contract_no,
+        Contract.contract_name,
+        Contract.project_no,
+        Contract.contract_type,
+        Contract.platform,
+        Contract.contract_amount,
+        Contract.sign_date,
+        Contract.company_name,
+        Contract.corporate_principal,
+        Contract.contact_phone,
+        Contract.executive_partner,
+        Contract.filler,
+        Contract.department,
+        Contract.payment_terms,
+        Contract.original_contract_no,
+        Contract.original_contract_name,
+        Contract.status,
+        Contract.remarks,
+        Contract.created_at,
+        Contract.updated_at
+    ]
+    query = apply_contract_filters(Contract.query.with_entities(*export_columns), request.args).order_by(
+        Contract.created_at.desc(),
+        Contract.id.desc()
+    )
     total_count = query.count()
 
     # 使用 write_only 模式按批次写入，避免全量工作簿常驻内存
@@ -569,7 +630,8 @@ def export_excel():
     ws.append(header_row)
 
     # 数据行
-    for index, contract in enumerate(query.yield_per(EXPORT_BATCH_SIZE), start=1):
+    stream_query = query.yield_per(EXPORT_BATCH_SIZE).enable_eagerloads(False)
+    for index, contract in enumerate(stream_query, start=1):
         ws.append([
             total_count - index + 1,
             contract.contract_no,
